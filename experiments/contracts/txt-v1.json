@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "profile_id": "filegate-txt-v1",
+  "status": "stage0_contract_only_validator_not_implemented",
+  "encoding": "UTF-8, optional leading UTF-8 BOM",
+  "invalid_encoding": "HOLD/UNSUPPORTED_FORMAT",
+  "allowed_c0": [9, 10, 13],
+  "NUL_other_C0_or_DEL": "HOLD/UNSUPPORTED_FORMAT",
+  "empty_regular_file_is_supported_candidate": true,
+  "empty_regular_file_requires_av": true,
+  "content_is_not_rewritten_or_normalized": true,
+  "filename": "no extension claim, or .txt; contradictory concrete extension HOLD",
+  "concrete_media_type": "text/plain or unspecified/application/octet-stream; contradictory concrete type HOLD",
+  "expected_type_if_present": "txt",
+  "recognized_other_magic_or_shebang": "HOLD/UNSUPPORTED_FORMAT (or supported container/format route only when no declared-type contradiction)",
+  "original_input_limit_bytes": 262144000,
+  "extracted_file_limit_bytes": 104857600,
+  "streaming_validation_required": true,
+  "required_av_input_count": "one per actual regular-file instance, including zero-byte files",
+  "accepted_text_is_filegate_pass": false,
+  "remaining_pass_conditions": ["manifest checks", "limited AV normal result", "fixed version/config/definition identity", "complete report validation", "VM/helper stop", "unchanged host input"]
+}

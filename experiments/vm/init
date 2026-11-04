@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+/bin/busybox --install -s /bin
+fail() { echo "FILEGATE_BOOT_FAILED" >/dev/console; poweroff -f; exit 1; }
+mount -t devtmpfs devtmpfs /dev || fail
+mount -t proc proc /proc || fail
+mount -t sysfs sysfs /sys || fail
+/bin/busybox ifconfig lo 127.0.0.1 netmask 255.0.0.0 up || fail
+printf '0\n' >/proc/sys/user/max_user_namespaces || fail
+printf '0\n' >/proc/sys/fs/suid_dumpable || fail
+modprobe virtio_blk || fail
+modprobe ext4 || fail
+modprobe overlay || fail
+mkdir -p /lower /definitions /work /newroot
+mount -t ext4 -o ro,noload /dev/vda /lower || fail
+mount -t ext4 -o ro,noload /dev/vdb /definitions || fail
+/sbin/mke2fs -q -t ext4 -F -m 0 -b 4096 -I 256 -i 16384 -E nodiscard,lazy_itable_init=0,lazy_journal_init=0 /dev/vdc || fail
+mount -t ext4 -o nodev,nosuid /dev/vdc /work || fail
+mkdir -p /work/upper /work/overlay-work /work/job
+mount -t overlay overlay -o nodev,nosuid,lowerdir=/lower,upperdir=/work/upper,workdir=/work/overlay-work /newroot || fail
+mkdir -p /newroot/.base /newroot/.definitions /newroot/.work /newroot/job
+mount --move /lower /newroot/.base || fail
+mount --move /definitions /newroot/.definitions || fail
+mount --move /work /newroot/.work || fail
+mount -o bind /newroot/.work/job /newroot/job || fail
+mount --move /proc /newroot/proc || fail
+mount --move /sys /newroot/sys || fail
+mount --move /dev /newroot/dev || fail
+mkdir -p /newroot/dev/shm
+mount -t tmpfs -o size=64m,nr_inodes=4096,nodev,nosuid,noexec tmpfs /newroot/dev/shm || fail
+exec switch_root /newroot /vm-guest

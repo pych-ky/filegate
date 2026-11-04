@@ -1,0 +1,9 @@
+`proposed.patch` は共通正規化の集約行へ、既存HWP/XLM各1件とLZMA3callerの参照を結ぶ候補です。集約は新しい観測として数えず、元のnormal分類・source推定scope・非直接guardの記録を保持します。全caller・全return branch・allocation失敗の完了を表明しません。
+
+`filegate-required` は段階0の仕様とfixture入力準備、段階1のvalidator実行を区別する表記へ変更します。validatorを実行したものとは扱いません。activeファイルは変更していません。
+
+これは旧Pythonによる結合候補の説明です。旧検証器は退役し、原本を外部archiveに保持します。当時の検証は保存済みの非除外2runから5caseのhashとprofileを再照合しています。除外sourceを読み直さず、他行の一致・98観測不変・誤参照時の部分更新拒否を確認します。
+
+同じ単独probeを再生成するGo CLIは未提供です。現在の採否は[実装状態](../../../IMPLEMENTATION_STATUS.md)に従い、以下の旧候補の状態と区別します。
+
+候補を適用するとdispatch設定receiptのsource行hashが変わるため、親作業でdispatch evidenceを再生成してから全体監査へ進みます。gate・profile・顧客運用はfalseを維持します。

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "profile_id": "filegate-host-budget-v1",
+  "status": "stage0_contract_and_storage_primitive_measurement",
+  "units": "bytes",
+  "original_pool": 5368709120,
+  "scan_raw": 4294967296,
+  "update_workspace": 6442450944,
+  "export_staging_per_destination": 262144000,
+  "safety_margin_per_volume": 2147483648,
+  "management_pools": {
+    "sqlite_main_including_terminal_reserve": 134217728,
+    "sqlite_wal": 67108864,
+    "sqlite_shm": 1048576,
+    "sqlite_rollback_journal": 134217728,
+    "sqlite_maintenance_temporary": 134217728,
+    "detailed_report_pool": 1073741824,
+    "update_report_pool": 16777216,
+    "normalized_logs_all_rotations": 33554432,
+    "runtime_control_and_spool_per_single_active_run": 67108864
+  },
+  "per_object_bounds": {
+    "detailed_scan_report": 33554432,
+    "update_report": 1048576,
+    "update_control_snapshot": 4096,
+    "each_console_stderr_receive_buffer": 1048576,
+    "integrated_watchdog_normalized_events_ram": 4194304,
+    "sqlite_transaction_admission_reserve_in_wal": 4194304,
+    "sqlite_terminal_transaction_reserve_in_wal": 33554432,
+    "sqlite_terminal_reserve_within_main": 16777216
+  },
+  "accounting": {
+    "physical_pending": "sum(max(0, reserved_bytes - already_written_bytes)) per volume",
+    "raw_full_preallocated": "already-written raw bytes are not also charged as outstanding reservations",
+    "original_charge": "committed actual sizes + unfinalized original reservations + unreserved orphan actual sizes",
+    "management_budget_excludes": ["originals", "scan/update workspace", "released files", "base images", "definition generations"],
+    "base_and_definition_admission": "measured immutable artifact sizes and current/staged generations charged before run/update; no unbounded copy or retained candidate",
+    "runtime_spool_excludes": "separately reserved detailed report file and SQLite/log pools",
+    "cleanup_failure": "keep outstanding reservation until writer exit, fd closure, owned-file deletion and required synchronization confirmed"
+  },
+  "admission": {
+    "all_pools_and_volume_free_space_checked_before_work": true,
+    "wal_journal_size_limit_is_not_a_hard_cap": true,
+    "wal_checkpoint_busy": "stop new writes/intakes before normal transaction reserve plus 32 MiB terminal WAL reserve is consumed; never assume a journal_size_limit readback bounded active WAL",
+    "db_tombstones": "retained without silent reset; refuse new work before terminal reserve is consumed",
+    "full_io_or_sync_error": "fail closed; never promote incomplete report/result or release reservations from elapsed time",
+    "scan_report_larger_than_bound": "reject report and keep confirmed rejection evidence independently",
+    "real_device_kernel_hard_quota_claimed": false
+  },
+  "measurement_boundary": "budget_probe.py uses explicitly smaller SQLite caps to induce SQLITE_FULL and pinned-reader WAL growth; those reduced values are not product limits",
+  "product_storage_ledger_implemented": false
+}

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "profile_id": "filegate-zip32-v1",
+  "design_version": "0.4.1",
+  "status": "stage0_contract_only_validator_not_implemented",
+  "specification": "https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT",
+  "specification_version": "6.3.10",
+  "go": "1.27.3",
+  "normalization": {
+    "module": "golang.org/x/text@v0.43.0",
+    "source_commit": "ac40b0f06c159afb5bfca4d1860f8b4b60dbc160",
+    "unicode": "17.0.0",
+    "per_component_key": "NFC(default full case folding(NFC(component)))",
+    "compatibility_normalization": false,
+    "input_names_are_not_written_to_disk": true
+  },
+  "profile": {
+    "methods": [0, 8],
+    "single_disk": true,
+    "zip64": false,
+    "prefix_gap_trailing_additional_records": false,
+    "archive_and_entry_comments": false,
+    "allowed_extra_fields": [],
+    "allowed_flags_mask_hex_by_method": {"0": "0808", "8": "080e"},
+    "encryption_flags_result": "HOLD/ENCRYPTED_ARCHIVE",
+    "other_unknown_flags_result": "HOLD/ARCHIVE_PROFILE_UNSUPPORTED",
+    "names_without_utf8_flag": "ASCII only",
+    "names_with_utf8_flag": "valid UTF-8 only",
+    "needed_version_store": [10, 20],
+    "needed_version_deflate_or_descriptor": [20],
+    "needed_version_directory": [20],
+    "descriptor": "signature 08074b50 and three uint32 fields; all local CRC/size placeholders zero",
+    "creator_posix": [3, 19],
+    "creator_dos": [0, 10, 14],
+    "dos_attribute_mask_hex": "37",
+    "dos_high_attributes": "must be zero",
+    "posix_types": ["regular", "directory"],
+    "known_posix_links_or_special_types": "BLOCK",
+    "unknown_or_missing_types": "HOLD",
+    "verified_empty_directory": "safe identical local/central name ending /, consistent directory attributes, Store, no descriptor, CRC and both sizes zero, physical payload empty, all layout checks complete"
+  },
+  "required_checks": [
+    {"id": "header-match", "contract": "independently compare local/central raw name, flags, method, needed version, CRC, sizes and extras; descriptor placeholders and actual values must match"},
+    {"id": "intervals", "contract": "overflow-safe bounded offsets; no reused local header, overlap, central-directory intrusion or out-of-input range"},
+    {"id": "coverage", "contract": "local entry intervals, central directory and EOCD explain every physical byte; never search compressed payload for record signatures"},
+    {"id": "crc-stream", "contract": "streamed actual size and CRC32 always compared, including recorded zero CRC"},
+    {"id": "deflate-end", "contract": "bounded ByteReader consumed length equals declared compressed range; exactly one fully terminated Deflate stream"},
+    {"id": "entry-kind", "contract": "independently validate creator, names, attributes, method, descriptor, physical payload; only verified empty directories excluded from AV; zero-byte regular files included"},
+    {"id": "tree", "contract": "aggregate each container's normalized component tree; duplicate explicit entries and file/ancestor conflicts BLOCK independently of entry order"},
+    {"id": "path-rules", "contract": "unsafe parent/absolute/drive/UNC/backslash/NUL/control/empty/dot components and alternate-path aliases BLOCK; opaque IDs used for extraction"},
+    {"id": "zip-profile", "contract": "unsupported valid ZIP is HOLD, never a permissive decoder fallback"},
+    {"id": "limits", "contract": "actual input/decoded bytes, per-file/cumulative bytes, entries, container/directory depth, path bytes and exact integer ratio; limits inclusive, excess HOLD"},
+    {"id": "manifest", "contract": "container, normal file and verified empty directory distinct; every entry counted; AV original plus every extracted regular instance, with documented directory exclusions"},
+    {"id": "decoder-boundary", "contract": "independent entry/offset/size manifest must match archive/zip before using its decoder"}
+  ],
+  "limits": {
+    "input_bytes": 262144000,
+    "extracted_file_bytes": 104857600,
+    "cumulative_extracted_bytes": 1073741824,
+    "archive_entries": 10000,
+    "container_depth_outer_zero": 3,
+    "directory_depth": 32,
+    "path_utf8_bytes": 1024,
+    "ratio_integer_comparison": "actual_uncompressed <= actual_compressed * 100"
+  },
+  "path_rules": {
+    "separator": "/",
+    "reject_components": ["", ".", ".."],
+    "reject_characters": ["NUL", "C0 controls", "DEL", "backslash", "colon", "double quote", "less-than", "greater-than", "vertical bar", "question mark", "asterisk"],
+    "reject_absolute_and_drive_unc": true,
+    "reject_dos_device_basenames": true,
+    "dos_device_basenames_case_insensitive_before_first_dot": ["CON", "PRN", "AUX", "NUL", "COM1..COM9", "LPT1..LPT9", "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³"],
+    "reject_trailing_dot_or_space": true,
+    "path_length_over_limit": "HOLD/LIMIT_EXCEEDED",
+    "directory_depth_over_limit": "HOLD/LIMIT_EXCEEDED"
+  },
+  "verdict_boundary": {
+    "accepted_structure_is_filegate_pass": false,
+    "format_checks_and_av_still_required": true,
+    "confirmed_rejection_survives_later_execution_failure": true,
+    "unvalidated_or_partial_structure_is_confirmed_rejection": false
+  }
+}

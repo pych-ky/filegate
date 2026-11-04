@@ -1,0 +1,843 @@
+{
+  "aliases": {
+    "/lib/ld-musl-aarch64.so.1": "/lib/ld-musl-aarch64.so.1",
+    "/lib/libc.musl-aarch64.so.1": "/lib/ld-musl-aarch64.so.1",
+    "/usr/bin/clamscan": "/usr/bin/clamscan",
+    "/usr/lib/libbz2.so.1": "/usr/lib/libbz2.so.1.0.8",
+    "/usr/lib/libclamav.so.12": "/usr/lib/libclamav.so.12.0.3",
+    "/usr/lib/libcrypto.so.3": "/usr/lib/libcrypto.so.3",
+    "/usr/lib/libgcc_s.so.1": "/usr/lib/libgcc_s.so.1",
+    "/usr/lib/libjson-c.so.5": "/usr/lib/libjson-c.so.5.4.0",
+    "/usr/lib/liblzma.so.5": "/usr/lib/liblzma.so.5.8.4",
+    "/usr/lib/libmspack.so.0": "/usr/lib/libmspack.so.0.1.0",
+    "/usr/lib/libpcre2-8.so.0": "/usr/lib/libpcre2-8.so.0.16.1",
+    "/usr/lib/libxml2.so.2": "/usr/lib/libxml2.so.2.13.9",
+    "/usr/lib/libz.so.1": "/usr/lib/libz.so.1.3.2"
+  },
+  "binary": "/usr/bin/clamscan",
+  "files": {
+    "/lib/ld-musl-aarch64.so.1": {
+      "bytes": 723480,
+      "elf": {
+        "interpreter": null,
+        "needed": [],
+        "rpath": [],
+        "soname": [
+          "libc.musl-aarch64.so.1"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "musl",
+      "sha256": "53282acc2be8a08a9fdcf880334bf35bbfd0a13862b7f3616be3919fcda11793",
+      "uid": 0
+    },
+    "/usr/bin/clamscan": {
+      "bytes": 198648,
+      "elf": {
+        "interpreter": "/lib/ld-musl-aarch64.so.1",
+        "needed": [
+          "libclamav.so.12",
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": []
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "clamav-scanner",
+      "sha256": "a174fa3c75b6f544f852cdc8205f61a3198355091ad07679bed1c0f591c31917",
+      "uid": 0
+    },
+    "/usr/lib/libbz2.so.1.0.8": {
+      "bytes": 70320,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "libbz2.so.1"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "libbz2",
+      "sha256": "101e3342e60a5dd834389a025f7c6dc6d45fa5e9dba1e3a81cd750571da2fb12",
+      "uid": 0
+    },
+    "/usr/lib/libclamav.so.12.0.3": {
+      "bytes": 13333712,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libmspack.so.0",
+          "libcrypto.so.3",
+          "libz.so.1",
+          "libbz2.so.1",
+          "libpcre2-8.so.0",
+          "libxml2.so.2",
+          "libjson-c.so.5",
+          "libgcc_s.so.1",
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "libclamav.so.12"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "clamav-libs",
+      "sha256": "ce8be1a30c2070afb459ac9aa4b0ff8c0a05af95846074c4f078f488de87c362",
+      "uid": 0
+    },
+    "/usr/lib/libcrypto.so.3": {
+      "bytes": 4533144,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "libcrypto.so.3"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "libcrypto3",
+      "sha256": "699d362147ff3d99d23aa84bdb353a86cc5cdc56a6bf3e1fafea7a9304f37b3e",
+      "uid": 0
+    },
+    "/usr/lib/libgcc_s.so.1": {
+      "bytes": 133008,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "libgcc_s.so.1"
+        ]
+      },
+      "gid": 0,
+      "mode": 420,
+      "package": "libgcc",
+      "sha256": "b83bc14b3e1660d66b0387077aea7e104fce3ed93bb56d05e30e4e2cdb37b473",
+      "uid": 0
+    },
+    "/usr/lib/libjson-c.so.5.4.0": {
+      "bytes": 67704,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "libjson-c.so.5"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "json-c",
+      "sha256": "6d843a1480d32e1b9b996b3b296cb0e8916de4f275fdff02d5e99e2be11d1cff",
+      "uid": 0
+    },
+    "/usr/lib/liblzma.so.5.8.4": {
+      "bytes": 263928,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "liblzma.so.5"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "xz-libs",
+      "sha256": "7ed62fd5f51e319b441d09530dd2c032ccddb9f1f413806ffc3afd647c721d04",
+      "uid": 0
+    },
+    "/usr/lib/libmspack.so.0.1.0": {
+      "bytes": 67352,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "libmspack.so.0"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "libmspack",
+      "sha256": "8d04ae17fc4531a650c468be7fee6ac43626abed36956700963640edf75dcb34",
+      "uid": 0
+    },
+    "/usr/lib/libpcre2-8.so.0.16.1": {
+      "bytes": 788464,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "libpcre2-8.so.0"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "pcre2",
+      "sha256": "d6a64c6aa72386c7334aaef33ae46a978f6e4b1626740f94e3d74bb4a734bfdd",
+      "uid": 0
+    },
+    "/usr/lib/libxml2.so.2.13.9": {
+      "bytes": 1182624,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libz.so.1",
+          "liblzma.so.5",
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "libxml2.so.2"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "libxml2",
+      "sha256": "8930cfb0f6f0639e6ecde1f6b9d10fd66c81ffa6a3424352bac8e8b786a3f75b",
+      "uid": 0
+    },
+    "/usr/lib/libz.so.1.3.2": {
+      "bytes": 133008,
+      "elf": {
+        "interpreter": null,
+        "needed": [
+          "libc.musl-aarch64.so.1"
+        ],
+        "rpath": [],
+        "soname": [
+          "libz.so.1"
+        ]
+      },
+      "gid": 0,
+      "mode": 493,
+      "package": "zlib",
+      "sha256": "afe41fdd58868461eae3b04068f334bfad2d4ecd0e11c7e30f9afafe06f28528",
+      "uid": 0
+    }
+  },
+  "fixture_definitions_only": true,
+  "image_binding": "enclosing stage0 suite image_sha256 plus build source_snapshot",
+  "loader": "/lib/ld-musl-aarch64.so.1",
+  "optional_unrar_libraries_present": false,
+  "package_manifest_sha256": "0fe48828267f944e056fd78567e756883a9b193f19019de22cf8667c8f29066e",
+  "packages": [
+    {
+      "apkindex_checksum": "Q1rHqiZlNF678/d2WvcEx5SLmN5js=",
+      "aports_commit": "8313352127992a9d82e2c2024494f6c38a4dffb4",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1792636353,
+      "bytes": 424994,
+      "datahash": "04aacbd2c61b9d7fc9fd0bc4f586a58e5571eccb360f54691e057974b1bb0430",
+      "name": "brotli-libs",
+      "origin": "brotli",
+      "pkginfo_sha256": "2daea611d5ed8b8d77e2f235b5edd1bd0aeb192c085aeddf82f2050558d7f6d2",
+      "sha256": "f802b9d5a329c216f02e73607cb8f662c434767e41686367ac0afcf6d0d45d64",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/brotli-libs-1.2.1-r0.apk",
+      "version": "1.2.1-r0"
+    },
+    {
+      "apkindex_checksum": "Q1cc/8KYHy1Us5N8Jb4vUWmz+wRTI=",
+      "aports_commit": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1768059508,
+      "bytes": 521974,
+      "datahash": "57b1a4f64a48ecdb097dfa1f32cf10a0dc9d572f77e4bc8d7b4adcf0f0b075b6",
+      "name": "busybox",
+      "origin": "busybox",
+      "pkginfo_sha256": "0bc252f60058489f0cefdbd7ccecff271a6f53b7fda53527ffcde21c51c2ea5d",
+      "sha256": "18e3490a6f024004b2b13dd4b54bd50ccd82894938023b2d4eab389a4edcba70",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/busybox-1.37.0-r31.apk",
+      "version": "1.37.0-r31"
+    },
+    {
+      "apkindex_checksum": "Q1ax93IqPnu5fQTo75Bv1ywGZ7pdA=",
+      "aports_commit": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1768059508,
+      "bytes": 1547,
+      "datahash": "01e4c8cf14988e2746aa37ebfd7bc25d6c3596cb39e024102b5ea52d4542e8a9",
+      "name": "busybox-binsh",
+      "origin": "busybox",
+      "pkginfo_sha256": "2db5cbbeb0aa905dd6bda7f236011aeccbd6a3f48229f12e6f6f2a08ee1a9fd7",
+      "sha256": "f3a1b2257cfa114ff20de05c665f380695385d589908bfc9af5768f39fef9ef5",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/busybox-binsh-1.37.0-r31.apk",
+      "version": "1.37.0-r31"
+    },
+    {
+      "apkindex_checksum": "Q1FRiuyy5jodNGsSaKP46XYrNSp3A=",
+      "aports_commit": "50f178d7a4c30ea44b54b7d4731ab58558c38b14",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1792583714,
+      "bytes": 111041,
+      "datahash": "f5ec41a772ec7f7a1204e9dae6c34ee301eb3b1cda610c6d8a8f95a47e7b2d4a",
+      "name": "c-ares",
+      "origin": "c-ares",
+      "pkginfo_sha256": "51bb5e7e591e816215266d243dffad31b4d2b02c2bf9412ae8824f1a101fb9ac",
+      "sha256": "1bda7f36597a3f6d616b0c8bd25cd611299bf353ec5ee2ae102e97694885c2f1",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/c-ares-1.34.9-r0.apk",
+      "version": "1.34.9-r0"
+    },
+    {
+      "apkindex_checksum": "Q11TztRkPmb8I4jKteprSsaIu3KW8=",
+      "aports_commit": "e78f5987166c6ffbe23f6472e2e8f040298fe2da",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1792510288,
+      "bytes": 107099,
+      "datahash": "8bb252a6e7db8c70fd0a73ebe00cdd9da4212383323fa0542cda82c83007fd0d",
+      "name": "ca-certificates-bundle",
+      "origin": "ca-certificates",
+      "pkginfo_sha256": "8b306df4fec9ee127b8ed12939ec298d05eac3be6ce21604f847305139899303",
+      "sha256": "d0a573c27d337c369ad3abe3f39f09ffe67b95af23861577a8d134738375176a",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/ca-certificates-bundle-20261020-r0.apk",
+      "version": "20261020-r0"
+    },
+    {
+      "apkindex_checksum": "Q1nfv9+qms7ihACIjGEVhh46VIAk8=",
+      "aports_commit": "c84b05967ca68847882204bc14ab80ecc7b38c57",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1786534299,
+      "bytes": 10721296,
+      "datahash": "d26b563bd01da4158aa639d9212cb4f63ad98b0d1f7b07d85a39504af47b8408",
+      "name": "clamav-libs",
+      "origin": "clamav",
+      "pkginfo_sha256": "e2467fef27ca393fe5ed8e6d73748853f4ef8bc7dd9c209c6d103e5bba0751ad",
+      "sha256": "ab6bf17c108e563d0c5e1da2b4d8569310128ebecd9d8b54c84e808dc1c5b18f",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/aarch64/clamav-libs-1.4.6-r0.apk",
+      "version": "1.4.6-r0"
+    },
+    {
+      "apkindex_checksum": "Q1/U9wXWlj7hqdPtyldfALpPRrrlk=",
+      "aports_commit": "c84b05967ca68847882204bc14ab80ecc7b38c57",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1786534299,
+      "bytes": 10145361,
+      "datahash": "5deb8b9befbd0d450d6c3544476d89a6cc0e42e3973151f982a6e8dfd6da62dd",
+      "name": "clamav-scanner",
+      "origin": "clamav",
+      "pkginfo_sha256": "f433feb7209aa2a7e78ca21d472aee33ac8ff535ae8678dd24e832a5c14f330b",
+      "sha256": "67f6e4352eb786ece6a15b5b36d5ff58a2eb4e07a786f5e664418ff494232ea9",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/aarch64/clamav-scanner-1.4.6-r0.apk",
+      "version": "1.4.6-r0"
+    },
+    {
+      "apkindex_checksum": "Q1cmnas+/90ztcNXTZILnFGZVKUJw=",
+      "aports_commit": "c84b05967ca68847882204bc14ab80ecc7b38c57",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1786534299,
+      "bytes": 34206,
+      "datahash": "4c66cdb694353e3eb7c2f755e2e40821af1992bec79b8f76d63710090ffc746d",
+      "name": "freshclam",
+      "origin": "clamav",
+      "pkginfo_sha256": "ec39308e424dda3443f48e40fc84c20a14d29a9fe2f0c25d2080579be2748165",
+      "sha256": "660b2c488c8a4a6547c71c8530c6cfe7a8faf4f10f487e5cf130c1f47bfae958",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/aarch64/freshclam-1.4.6-r0.apk",
+      "version": "1.4.6-r0"
+    },
+    {
+      "apkindex_checksum": "Q1XYNjSqO84cdMMgnYAJDAxy7Owuk=",
+      "aports_commit": "1ea03990396db618edfcc8a9a0bc6b72662bac8f",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1753888742,
+      "bytes": 33830,
+      "datahash": "0994cdce54c9eb1a747ff4605da55e1d3fc844b307840cc8185c91ee348db779",
+      "name": "gdbm",
+      "origin": "gdbm",
+      "pkginfo_sha256": "9f65302c3fe4cfeb9c52ca58e7291f50a5c57987591eff254926aa7508646e37",
+      "sha256": "bad50eb26533e2f58e014fbcd3c1744f2fdb79954af6e3c188ccd059251c7790",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/gdbm-1.26-r0.apk",
+      "version": "1.26-r0"
+    },
+    {
+      "apkindex_checksum": "Q1gzT6UPtMBS5pi2S6756O2bqVMx8=",
+      "aports_commit": "8e0faa63c91abd41feb359ce5fe4299a88a57ef1",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1755607158,
+      "bytes": 28537,
+      "datahash": "5d4a8c5d614f5088f00b60f006b28dab4114c20720ab66848f03cb244cd5b3c9",
+      "name": "json-c",
+      "origin": "json-c",
+      "pkginfo_sha256": "eed6b1a3a68421a91dbed8df36f89cafa5300bd99b73b50164c26d70fa09170b",
+      "sha256": "2b9ac9f748f4c7b8a19edd51f3ae4cdf4275541763058381627f55a8bbf71ae6",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/json-c-0.18-r1.apk",
+      "version": "0.18-r1"
+    },
+    {
+      "apkindex_checksum": "Q1ZK5fja6KZjk14isO1bkD0fdooe4=",
+      "aports_commit": "33283848034c9885d984c8e8697c645c57324938",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1684120357,
+      "bytes": 34259,
+      "datahash": "028cbafe4c8cf5468d50ca65f6aa0dadc0d3c52940908db0715d0ad84a840b45",
+      "name": "libbz2",
+      "origin": "bzip2",
+      "pkginfo_sha256": "59cff7ce8a575d832d9704cf7f4eaa1216075f93d39a860c5121d28068800594",
+      "sha256": "28cb76bb6d11d2a55c3061b5fcb2ab84996412a248b2c9fe52bb710d0a2a84e7",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libbz2-1.0.8-r6.apk",
+      "version": "1.0.8-r6"
+    },
+    {
+      "apkindex_checksum": "Q1nd3DZ6uRv/vKf+I4jGECIMBUisw=",
+      "aports_commit": "29b9ec24b1b5b39aeef51fa2a044210e2ec5258e",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1790752173,
+      "bytes": 2286800,
+      "datahash": "bac215178133c0ab0a58fe5017198071934fff47c8e6823b7e48ef8127ffcf50",
+      "name": "libcrypto3",
+      "origin": "openssl",
+      "pkginfo_sha256": "86f367478d57ec76f81ea1369b7bfb873eaa65db4fbef5091b8b55d93beaa393",
+      "sha256": "2676a2b0b6e23ea2edccf3ee982b9842a665d52603d047de3d0a185dc316d983",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libcrypto3-3.5.9-r0.apk",
+      "version": "3.5.9-r0"
+    },
+    {
+      "apkindex_checksum": "Q1lexUIXAwSTJlGbHXmcyzQLluXkE=",
+      "aports_commit": "c65a7b3f6d6bc4b3c0a8a6fff759d8fd05a167ce",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1792943290,
+      "bytes": 365707,
+      "datahash": "686c91ef57b6a972a4b0a0f2694b9706e773ab09b2968bc18d47f04f9478e5b4",
+      "name": "libcurl",
+      "origin": "curl",
+      "pkginfo_sha256": "1ba8ff3185d9e7d7d31ca187f0957fc240cf7331a35f62054a473e9a490f551a",
+      "sha256": "64ae89f6e5d318ed5209778232191806ce49644ce9e09540b7d7830a5330d127",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libcurl-8.23.0-r0.apk",
+      "version": "8.23.0-r0"
+    },
+    {
+      "apkindex_checksum": "Q12D73VTVX4ME2g7EgWWb93byIAW4=",
+      "aports_commit": "c10df79ce35862cf273f98f6eb78d52e4f064ac7",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1792234642,
+      "bytes": 61864,
+      "datahash": "2113faed7e8f6ebd6febded10f4aba51b6669569883159091bf5a3bbe2b4ee53",
+      "name": "libexpat",
+      "origin": "expat",
+      "pkginfo_sha256": "c62a9669e3fa0eefd95f60b78a85986c6d8fb1f1a27f535f6c005ab382c2ccec",
+      "sha256": "7128bfe18b8a315b9cf90ddf0beffeee454648ae72ff7898ff7d7b09803a559d",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libexpat-2.9.0-r0.apk",
+      "version": "2.9.0-r0"
+    },
+    {
+      "apkindex_checksum": "Q1uqo6H3qMZYL1m9s+pdzqCQl4r0A=",
+      "aports_commit": "2c2a7bb4a8b16066834e90402567b2c19403a790",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1776273462,
+      "bytes": 17799,
+      "datahash": "49919439b84b0a711f4e9be65e2e17bccf433c1a0276c1ba52c65b80f8d795a8",
+      "name": "libffi",
+      "origin": "libffi",
+      "pkginfo_sha256": "3b1529bc73ab9bec85ac9f25b393564c597724adf12e9dd5e70d8e5b3c927eff",
+      "sha256": "9a67280b0c7c62db658c2d4d32ed1199903bef859c32dd4245e1a7e35c89ab4b",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libffi-3.5.2-r1.apk",
+      "version": "3.5.2-r1"
+    },
+    {
+      "apkindex_checksum": "Q1JLUL+2dMZ+EpWBoaIsHD7VI7bUg=",
+      "aports_commit": "423a8ad043d07f2c7546c8ec3e2b0384cda360ae",
+      "build_tool": "Generated by abuild 3.17.0_rc2-r0",
+      "builddate": 1780084766,
+      "bytes": 66323,
+      "datahash": "777216a47945f3392ba2a4666dac5250f19a54bb6bcf42bd379f98b31d563cdb",
+      "name": "libgcc",
+      "origin": "gcc",
+      "pkginfo_sha256": "fc835ed310bf1ec872ff2eafd47c2fe2eb0b068c74dd53ca807684c2ef22bf45",
+      "sha256": "369aaa6e9d099a737bad6dd3e6c2fe7bb1547ca26d22b94ee0411228f709b403",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libgcc-15.2.0-r5.apk",
+      "version": "15.2.0-r5"
+    },
+    {
+      "apkindex_checksum": "Q1zvilitDGXxjOFoXaG8ZJKsSrCeM=",
+      "aports_commit": "8240e09aa2fdd8f9979b2016be082273965aff0c",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1751290607,
+      "bytes": 105430,
+      "datahash": "f79d8d1f24d32118d6bf1bc0d3fdd3ba8b28b7e42fdb5b0e10af2b7eb56b22e3",
+      "name": "libidn2",
+      "origin": "libidn2",
+      "pkginfo_sha256": "7b9732e0e317d6cf14c2078e0100f83f2d318c37c65dba353fa097c9dffe08b2",
+      "sha256": "d02ffda4510652f89c5fb89cd2e7ff721afb0c74e7d75476ad60bebe7ac0ae20",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libidn2-2.3.8-r0.apk",
+      "version": "2.3.8-r0"
+    },
+    {
+      "apkindex_checksum": "Q1b8ZzmSuB1FT4pSejinMmRAwkp0Y=",
+      "aports_commit": "33283848034c9885d984c8e8697c645c57324938",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r2",
+      "builddate": 1684120357,
+      "bytes": 33198,
+      "datahash": "8189e92380841558aec3935eacd7aae01abfb3cd6084e522ba7f853b0bd912fc",
+      "name": "libmspack",
+      "origin": "libmspack",
+      "pkginfo_sha256": "f96db6300686efbc51d03835cfe6631b91fc4e027a8be54dbb6d6267c4d6d920",
+      "sha256": "74a04a3562a07c483ca2688f00239b4f5537e0bf4eb05921cb1ee8b491e297cf",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/aarch64/libmspack-0.11_alpha-r1.apk",
+      "version": "0.11_alpha-r1"
+    },
+    {
+      "apkindex_checksum": "Q1wNl5+kek1M3VEWlcXl8M4+jPHqI=",
+      "aports_commit": "2cee8a7328d061418336ad327b512d96bcd7bc5e",
+      "build_tool": "Generated by abuild 3.17.0_rc2-r0",
+      "builddate": 1779608199,
+      "bytes": 161906,
+      "datahash": "9debb83383150edb3ffcdcc69b09f33543691642aebf1de274dab9a6777125a0",
+      "name": "libncursesw",
+      "origin": "ncurses",
+      "pkginfo_sha256": "4e7673a397c7eb9abd0749debbec65ed8ceea5b46ced4e30f6debfb09d28cb73",
+      "sha256": "51a7aa4b3ec40b144d0801c0544e0a9f62e2a41d04b6067bb5e95786040741c6",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libncursesw-6.6_p20260516-r0.apk",
+      "version": "6.6_p20260516-r0"
+    },
+    {
+      "apkindex_checksum": "Q16C1TT7gQUT+eauK8JD6rRnJIsIQ=",
+      "aports_commit": "2cee8a7328d061418336ad327b512d96bcd7bc5e",
+      "build_tool": "Generated by abuild 3.17.0_rc2-r0",
+      "builddate": 1779608199,
+      "bytes": 5903,
+      "datahash": "64f1a9988476feb708c1dbed4d947ae06865b3b4a373d394e4d67479250f702b",
+      "name": "libpanelw",
+      "origin": "ncurses",
+      "pkginfo_sha256": "8d8ff1d87c058c6f234a823593f9532bb792b9b21e3c53d4cab4fb7263454a20",
+      "sha256": "a6912c654c821db4f8a801321709205bd482b0e515b862f2d02045e21b73d97d",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libpanelw-6.6_p20260516-r0.apk",
+      "version": "6.6_p20260516-r0"
+    },
+    {
+      "apkindex_checksum": "Q1H8lLDChibFToqCKIZfSVqiTlq2c=",
+      "aports_commit": "6bd45b53fb316dc01bda59f5feaf1e127eb64f22",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1746823694,
+      "bytes": 55302,
+      "datahash": "118aeb654790e51c75bbe320adab3016eafb61373ade47122d3488f8b7be79c2",
+      "name": "libpsl",
+      "origin": "libpsl",
+      "pkginfo_sha256": "6a08593f58017c1b26397f8f2de35754bb8b803b5fc3834840e701c231741bfc",
+      "sha256": "b31e91371425d5f80c1db5cba2a849956b65c802add0b49de844b2ca961aa8da",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libpsl-0.21.5-r3.apk",
+      "version": "0.21.5-r3"
+    },
+    {
+      "apkindex_checksum": "Q1fPvgmLY6scIS37WtG8V+V3AmPLY=",
+      "aports_commit": "29b9ec24b1b5b39aeef51fa2a044210e2ec5258e",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1790752173,
+      "bytes": 373023,
+      "datahash": "b29c658100eab41928cd43c35cd6f3258d1fdea9ee74fe610f1ad98fd0d8aa37",
+      "name": "libssl3",
+      "origin": "openssl",
+      "pkginfo_sha256": "3271b39f1973538f59bddffef83f4e917b70a6660d01c9500b79d1f7ed8afac9",
+      "sha256": "20ac252b276d73f2c69c1d25f84537c7fba81caefc026c6be1094b394af2082e",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libssl3-3.5.9-r0.apk",
+      "version": "3.5.9-r0"
+    },
+    {
+      "apkindex_checksum": "Q16WWaNCGe8kVn4lkwb/3DGo6OyqY=",
+      "aports_commit": "423a8ad043d07f2c7546c8ec3e2b0384cda360ae",
+      "build_tool": "Generated by abuild 3.17.0_rc2-r0",
+      "builddate": 1780084766,
+      "bytes": 908984,
+      "datahash": "d488e5fcd29baa9471a45c10677f9295a1f9e6195321929b0f81f4c1d3f029b5",
+      "name": "libstdc++",
+      "origin": "gcc",
+      "pkginfo_sha256": "9663841deeeb630f3f751c20156802d0d330caa59380164abe639c6a44b7c570",
+      "sha256": "2302e766d4e4926038ec166ecb85837ee884576115236ddb565e3a5fca4a11d7",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libstdc++-15.2.0-r5.apk",
+      "version": "15.2.0-r5"
+    },
+    {
+      "apkindex_checksum": "Q1iQdlV+ylR4F/KgWhQ4xXrXvpq1Y=",
+      "aports_commit": "30d9f19340385b2cd16eaf1cc6a9a8b30c4afe1c",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1776358990,
+      "bytes": 746169,
+      "datahash": "ac51124d1932b954eb38964dff93dcb7958bb66af4e7f67c6216636fc7e78809",
+      "name": "libunistring",
+      "origin": "libunistring",
+      "pkginfo_sha256": "3f07fe67f1273143f209efd5a96545805e86f0b24e5062d00991885af858d721",
+      "sha256": "58abfcbce2459071c505771a572a79953d6043d72b643ed0d5285ca39cdaf85c",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libunistring-1.4.2-r0.apk",
+      "version": "1.4.2-r0"
+    },
+    {
+      "apkindex_checksum": "Q1XqQkBQptIO/m8hIOcwc4bK4yAnU=",
+      "aports_commit": "f1bd5b6767a0e7fdda380c95138a1c938eb6e102",
+      "build_tool": "Generated by abuild 3.17.0_rc2-r0",
+      "builddate": 1779961238,
+      "bytes": 496747,
+      "datahash": "9873cb4835b844965d4f5dbf2659058eaa002688909ea19fc9293aea24070c0f",
+      "name": "libxml2",
+      "origin": "libxml2",
+      "pkginfo_sha256": "5d0f139795864eb08b8fdbc4da89fdd9223e466b48f6bc6d080791f4d2df2fbb",
+      "sha256": "0a860a26ebdfea491498386fe682130f4c5565e46ee8e0a2281256db2ef1be27",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/libxml2-2.13.9-r2.apk",
+      "version": "2.13.9-r2"
+    },
+    {
+      "apkindex_checksum": "Q1EBAm/IsRrsQaPnHsNnlng2lDdl4=",
+      "aports_commit": "c0519b85456e9b838e3142e1d233aab0b433b476",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1747406985,
+      "bytes": 81031,
+      "datahash": "57d7f90646265f8c303eb66d646e2a2539e88e0af02c13aa0bc183f53f108922",
+      "name": "mpdecimal",
+      "origin": "mpdecimal",
+      "pkginfo_sha256": "5954acd931ed5365e58413b3fd5493b44aa6b6a5a321e860494f630be2d85d25",
+      "sha256": "358959600f99f58deee30ca9089c7f6f0f1bd73cc0021e321a7dbf6f735935c6",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/mpdecimal-4.0.1-r0.apk",
+      "version": "4.0.1-r0"
+    },
+    {
+      "apkindex_checksum": "Q1LxWdAiUjx6a3hymmYymFy3cU++Y=",
+      "aports_commit": "8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1792597816,
+      "bytes": 417730,
+      "datahash": "a923bd7f48b2a5d9aa9a3c51158bf967c36403dce1045e8eab148da096fa4981",
+      "name": "musl",
+      "origin": "musl",
+      "pkginfo_sha256": "f9cdee26ee21a62f00b1cd6bf92a01af98b7e72aac4e851a5708d9669acfc178",
+      "sha256": "2e17864102278d9049c3a56f1bceed9e8cf287065617e579325123443daed8a5",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/musl-1.2.6-r3.apk",
+      "version": "1.2.6-r3"
+    },
+    {
+      "apkindex_checksum": "Q1/MzFElM7Tf9vRK02sG+bQ+iEjR8=",
+      "aports_commit": "2cee8a7328d061418336ad327b512d96bcd7bc5e",
+      "build_tool": "Generated by abuild 3.17.0_rc2-r0",
+      "builddate": 1779608199,
+      "bytes": 22150,
+      "datahash": "dc14910f3883943bfdd621c801e4d479cf3c3b4df443644e353ef001345df8ed",
+      "name": "ncurses-terminfo-base",
+      "origin": "ncurses",
+      "pkginfo_sha256": "598fb930c486401e0c1a3d254d4c281f8fabd9359c0bc3d50e5727deba4ca749",
+      "sha256": "e0c546b9461bdce206a90bc720cb69aa4628b5a5b8d908c3e5084e00f28f6a9d",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/ncurses-terminfo-base-6.6_p20260516-r0.apk",
+      "version": "6.6_p20260516-r0"
+    },
+    {
+      "apkindex_checksum": "Q1oTifXm7i5p3OauTSX1L9ZHst41g=",
+      "aports_commit": "d5a34efc88bbe8d18737fda28125071c4aef8517",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1790857349,
+      "bytes": 63644,
+      "datahash": "07f7b533dd702630d7f6616971b62fc6f273c11ff3224a31ba6a5d966141f52a",
+      "name": "nghttp2-libs",
+      "origin": "nghttp2",
+      "pkginfo_sha256": "8e792711a41d4d4d82dd85da826cadb3b5c4e0a655d49580d25eaa587baad104",
+      "sha256": "7ef451f4dcdc065aa872c2f3c78b9d9bb4348caa5bcc70dee0c9e1fcf8e4c1fd",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/nghttp2-libs-1.70.0-r0.apk",
+      "version": "1.70.0-r0"
+    },
+    {
+      "apkindex_checksum": "Q10e5Tm6BjCkQImS9ju5aGYjeAfu4=",
+      "aports_commit": "3d497cbb3217749c4fb85f90f3b6f7908b0c1f95",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1790852135,
+      "bytes": 320291,
+      "datahash": "a431270a7c8f17637daaa4434dd54e29114291961b055f707a9ad3fa81dce5b7",
+      "name": "pcre2",
+      "origin": "pcre2",
+      "pkginfo_sha256": "7cae360f854596e0e097ff22d96113d03b2a6943bcfd1a522f071065e991b7da",
+      "sha256": "03efd0b29f7f38deb10a9ccb54f56e19683eb7ac27eb1f347e6dbd2e59ea000d",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/pcre2-10.49-r0.apk",
+      "version": "10.49-r0"
+    },
+    {
+      "apkindex_checksum": "Q17cUgwuO9sWNyaxV2Iw0L7WtE1Fc=",
+      "aports_commit": "5ef79ec612cb0c426bd500563695925bf80a81f7",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1793086356,
+      "bytes": 8332507,
+      "datahash": "eb37ac4d8089ab2cc764f333be8cf65bc40b48bcfa07d40fd803d452fc52fb76",
+      "name": "python3",
+      "origin": "python3",
+      "pkginfo_sha256": "9ca2c7b5d0490211ee5a847b4d3cdce186229ffde42a3ba559db162874cf10ae",
+      "sha256": "f2013fe7f0f14910237630f97af989262d34c54f94ec17885df7bad7d779dd0a",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/python3-3.14.10-r0.apk",
+      "version": "3.14.10-r0"
+    },
+    {
+      "apkindex_checksum": "Q1GPvWxvOSv5J0EQfi4YdIeWwjGK8=",
+      "aports_commit": "a854c03acdac188901fb012f7acbee70a36e8041",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1769144791,
+      "bytes": 129706,
+      "datahash": "663956f861094610beb718e1d542ee6a89c7f25c0b982082cf381ae749418a42",
+      "name": "readline",
+      "origin": "readline",
+      "pkginfo_sha256": "2829e4a185463a81e0e362deecb0f508a5837f92c164933c4f1e60666581b16f",
+      "sha256": "9f0ae0923c02b0d6aba62e9173542b65396ba3f0efefcbf087ea32f1120e7b34",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/readline-8.3.3-r1.apk",
+      "version": "8.3.3-r1"
+    },
+    {
+      "apkindex_checksum": "Q1OWsp/zpMxhhT4AEyP8P+zIs8g+U=",
+      "aports_commit": "a9c3ba8b9129ec0f294d0a9bf538c2f1632bb016",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1787333779,
+      "bytes": 852532,
+      "datahash": "e874c16ee622ff57d84e0ee301d9a09fe62c717b684eeacc1098a76eb07bfbca",
+      "name": "sqlite-libs",
+      "origin": "sqlite",
+      "pkginfo_sha256": "de0975de04549b19c6d854c2298b45a281395d1db6b58d192c10f6f6222e6b4b",
+      "sha256": "b39d8d73c1208838a436f2d481ba605b52a095f8d6ff781556eafc81cd1a13e9",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/sqlite-libs-3.53.4-r0.apk",
+      "version": "3.53.4-r0"
+    },
+    {
+      "apkindex_checksum": "Q1Fees+uhwysD9zTWYVVONXWbxQCA=",
+      "aports_commit": "0c088d609f9fe69eedd6b4c7f4b99cdad847c20a",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1788989067,
+      "bytes": 119423,
+      "datahash": "ae010740b702b9862c5f8321be4d26ce360589b772b9648d46616a6bb3c53af2",
+      "name": "xz-libs",
+      "origin": "xz",
+      "pkginfo_sha256": "8317b93bac10c107f089cffb7ccda29e014cdb12615f8015ae5a521604a6975d",
+      "sha256": "9be375832e747afe14f98e400e8b55d8f6fde25e41663090c81600628daab093",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/xz-libs-5.8.4-r0.apk",
+      "version": "5.8.4-r0"
+    },
+    {
+      "apkindex_checksum": "Q1jP3JcWVZiDTJ6FovhLCh8M8Qt1I=",
+      "aports_commit": "0afa2da0e8c8051c6f8f64a7a388e5a259904245",
+      "build_tool": "Generated by abuild 3.17.0-r0",
+      "builddate": 1791318860,
+      "bytes": 54334,
+      "datahash": "d48cc0fb28fae23350212a59eb9cdb83922a5d15ebb7a272880a5c021af6cd45",
+      "name": "zlib",
+      "origin": "zlib",
+      "pkginfo_sha256": "a05759ee7a44bc55b4e9455d12f5220293724e7f743fdae265863c00e02c521b",
+      "sha256": "1f77a542ac6634761b9fe38d8bdca19b154071dcfa25432e73f2bc8a0740a33f",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/zlib-1.3.2-r1.apk",
+      "version": "1.3.2-r1"
+    },
+    {
+      "apkindex_checksum": "Q1UrGFE6B78rsNBjRohoH37c42uco=",
+      "aports_commit": "3c6e2ee2b16f403d53eab39c4426eb61f003c322",
+      "build_tool": "Generated by abuild 3.17.0_rc1-r1",
+      "builddate": 1753704404,
+      "bytes": 365383,
+      "datahash": "9b661b5057a2bb94fdcc9ec23843475185688dde13c1f61d2febb94ab32d25fc",
+      "name": "zstd-libs",
+      "origin": "zstd",
+      "pkginfo_sha256": "d8d881d80f95b7cf1ede49ad26687fd29693ed3fdd7d73676add610d1e57cc92",
+      "sha256": "2bb5136c89f5b0bbe1554c8915a3b520d5aa63ae2a51d4d821eb81698db5a818",
+      "signature_verification": "pending_guest_apk",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/zstd-libs-1.5.7-r2.apk",
+      "version": "1.5.7-r2"
+    }
+  ],
+  "production_definitions_adopted": false,
+  "schema": 1,
+  "scope": "stage0_harmless_fixture_APK_scanner_binding",
+  "source": {
+    "ambient_compiler_flags_and_build_log": "not_reproduced_or_claimed",
+    "aports_commit": "c84b05967ca68847882204bc14ab80ecc7b38c57",
+    "archive_sha256": "06dbc7adf96e2f6a27c548a841ce83c95360d1e121b106a6f7cf56f282a3c61b",
+    "archive_sha512": "5e1978befd63eb1095fc203b41ca5e9084e6eeae350660012fb19e68c74a454c11adae69459dd6f521c5a99d0ff57fd976b19b9e768776a94684fa186440a894",
+    "build_sources": [
+      {
+        "name": "APKBUILD",
+        "sha256": "8557b6d6396f8c76ba0c75cf4dcad0e2dd2c64e9d35498a14e35b60fd5fa7574",
+        "sha512": "7ee94f632a70e35326dfeb81fffaffdf65851f75ea65fb4a420af113514d5ae33d3bd0b1f931de19dfc8982721af2e0d55587726962d75af1a3f20733327bd35",
+        "url": "https://raw.githubusercontent.com/alpinelinux/aports/c84b05967ca68847882204bc14ab80ecc7b38c57/community/clamav/APKBUILD"
+      },
+      {
+        "name": "link-fts.patch",
+        "sha256": "45f759027202406d12c20e99639a0ed983a090156f922942157c15db16256413",
+        "sha512": "20a52291d00e0b8e6e0cd7b31484a577045dfa8e2481fe1e4e1640e6f6d9317114c7fd53211a2bf9edcea4e084789b4820d7ceeaaf17346d581524683289e698",
+        "url": "https://raw.githubusercontent.com/alpinelinux/aports/c84b05967ca68847882204bc14ab80ecc7b38c57/community/clamav/link-fts.patch"
+      },
+      {
+        "name": "clamd_freshclam_conf_alpine.patch",
+        "sha256": "3afe37627e1ea2b7a09bd942cb160bfd440ebe9b28e8b61739af4fb7be672911",
+        "sha512": "eea1d6e9b1949ac1dfac14a9c7dac57e43acd7a85e494f9f8fdf40eb0cd8cdd1c3054fbea6310d858fa2675e8801b10f5f569899c8ce1dec405f065b62300179",
+        "url": "https://raw.githubusercontent.com/alpinelinux/aports/c84b05967ca68847882204bc14ab80ecc7b38c57/community/clamav/clamd_freshclam_conf_alpine.patch"
+      }
+    ],
+    "cmake_flags": [
+      "-DCMAKE_BUILD_TYPE=None",
+      "-DCMAKE_INSTALL_PREFIX=/usr",
+      "-DCMAKE_INSTALL_LIBDIR=/usr/lib",
+      "-DCMAKE_SKIP_INSTALL_RPATH=ON",
+      "-DAPP_CONFIG_DIRECTORY=/etc/clamav",
+      "-DDATABASE_DIRECTORY=/var/lib/clamav",
+      "-DENABLE_DOXYGEN=OFF",
+      "-DENABLE_SYSTEMD=OFF",
+      "-DENABLE_TESTS=ON",
+      "-DENABLE_CLAMONACC=ON",
+      "-DENABLE_MILTER=ON",
+      "-DENABLE_EXTERNAL_MSPACK=ON",
+      "-DENABLE_EXAMPLES=ON",
+      "-DENABLE_EXAMPLES_DEFAULT=ON",
+      "-DHAVE_SYSTEM_LFS_FTS=ON",
+      "-DENABLE_JSON_SHARED=ON"
+    ],
+    "patch_targets": [
+      "clamonacc/CMakeLists.txt",
+      "etc/clamd.conf.sample",
+      "etc/freshclam.conf.sample"
+    ]
+  },
+  "upstream_package_signature_verified_here": false
+}

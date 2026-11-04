@@ -1,0 +1,17 @@
+# PE展開guard・型登録数・SWIZZOR既定設定の候補
+
+これは旧Python候補の準備・観測案であり、現在の実行手順ではない。原本は外部archiveに保持し、読取り専用の `route_observer.c` と以下の有限な説明を残す。同じ単独probeを再生成するGo suiteは未提供で、未実証範囲を合格へ変更しない。採用profileの全引数と通知設定を維持する。入力はClamAVで読むだけで、PEをロード・実行しない。
+
+FSG v2の2ケースは1 KiBのPE32 DLL形式データである。先頭のvirtual-only sectionと次のraw section、entrypoint先頭の識別2 bytesを固定sourceに合わせる。申告展開サイズを262139904/262148096 bytesとし、既定max-filesizeを挟む。上限内はxchg参照範囲の検査でFSGを抜ける。その後UPXの共通入口で両sectionの合計262144000 bytesを上限内と判定し、約250 MiBのbuffer確保後にNRV2B/2D/2Eを各2 offsetで試し、全失敗後に解放する経路を確認する。通常cleanと、FSG・UPXそれぞれのサイズ判定を確認する。上限外は `CLI_UNPSIZELIMITS` 内の `cli_checklimits` でMaxFileSize通知が出ることを要求する。このマクロはCL_CLEANへ戻すが、通知は通常結果に残る必要がある。他のpackerやFSG後続guardは実証範囲に含めない。
+
+型登録数の2ケースはMSEXEのmultipart type signatureが10/11件になる入力で、外側PE自身も1枠を消費する。前の8/9件はMZ/PE形式markerを持つがsection数0のためheader checkで落ち、末尾だけが有効な無害PEである。末尾PEのimport hashにだけ一致する `.imp` を使う。10件では末尾の検知、11件では登録10枠が先行候補で埋まり末尾を検知しないことを要求する。単に有効PEを並べた場合は最初の埋込みPEが末尾を含めて再帰scanするため、この非検知の説明には使えない。ZIPSFXは登録上限の例外であり、今回の結果を適用しない。
+
+診断observerは元の `cli_checklimits` / `cli_ac_scanbuff` を1回呼び、戻り値と引数・buffer・listを変更しない。FSGと後続UPXの要求サイズと判定、root入力長に対応する型登録数と最後のoffsetだけを記録する。`filetypes.h` のARM64 matched-type構造体ABIを固定し、サイズとfield offsetをcompile時確認する。実APKのdynamic symbolとJUMP_SLOTもhostで確認するが、実interposeはVM再試験で初めて実証できる。runnerは通常/診断のexit・OK・warning・error・上限通知・markerを一致させ、debugのheader拒否数と末尾PE到達も確認する。
+
+SWIZZORはsection数2・64 KiB超・resource directory有りの入力を用意し、debugの最終dconf表示がOffで通常OKとなることを要求する。固定 `dconf.c` の初期値はOffだが、定義の `.cfg` がPE maskを書き換えられる。この試験のNDBだけの定義集合に限定したcaller非活性の確認であり、製品用定義集合の非適用証明や2000件resource-error境界到達ではない。製品で実際に使う定義/configとのbindingは残す。SWIZZORを有効化したり他の機能を無効化したりするfixture configは追加しない。
+
+ホスト準備は固定archiveとの同値確認、全PE section/RVA/marker位置、observer構文とELF symbol、採用上限維持、VM runnerのホスト拒否を確認する。target ClamAVは実行しない。
+
+旧Python準備CLIは退役し、この文書から再実行を案内しない。
+
+保存済み候補のsource/image/profile/定義/入力receiptと未実証範囲を保持する。この案の存在を現Go構成の段階0・製品採用の実行証拠にしない。拒否されたPESpin/PE allocationの境界入力作成・調査は別経路でも再試行しない。

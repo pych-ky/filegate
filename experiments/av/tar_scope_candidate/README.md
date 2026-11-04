@@ -1,0 +1,7 @@
+これは固定ClamAV 1.4.6のold/POSIX TARを、各4件の小さい入力で対照した旧候補の説明です。Pythonの準備・実行CLIは退役し、同じ単独probeを再生成するGo suiteは未提供です。入口は同じ`cli_scantar`で、POSIX引数だけが異なります。source分類は`coverage.json`、固定版の根拠と入力構造は準備artifactへ残します。
+
+正常・checksum不正・body途中終端・magic不一致を観測します。HDBはmember全体のhashとサイズへ結び、原本TARの一致を抽出成功と扱いません。途中終端は宣言2048byte・実600byteで、source上は512byteのzero補完後、1112byteをscanします。通常とdebugは同じDBを使い、別の診断DBによる1112byte全体hash検知を独立に記録します。この予測は実機結果を得るまで実測と扱いません。
+
+旧原本・入力recipeは外部archive、通常結果と別DB診断の採用範囲は検証領域の `experiments/av/runtime-observations.json`で照合します。catalogの旧fixture名 `av-tar-scope` を、現在実行できるGo suiteの案内として扱いません。
+
+共有上限、特殊entry、サイズfield異常、I/O失敗はsource分類と今回の実測範囲を分けています。既存の別形式のmax-filesize/max-files結果をTAR全体の証明に流用しません。

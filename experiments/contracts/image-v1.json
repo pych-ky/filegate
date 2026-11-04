@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "profile_id": "filegate-image-v1",
+  "status": "implementation_pending_vm_acceptance",
+  "decoder": "Go 1.27.3 image/png and image/jpeg, after independent structure validation",
+  "original_input_limit_bytes": 262144000,
+  "extracted_file_limit_bytes": 104857600,
+  "decoded_raster_limit_bytes": 104857600,
+  "decoded_raster_accounting": "PNG width*height*4 for <=8-bit samples or *8 for 16-bit; JPEG MCU-padded width*height*4. This is an adapter limit, not a claim about total process memory.",
+  "png": {
+    "reference": "https://www.w3.org/TR/2025/REC-png-3-20250624/",
+    "allowed_chunks": ["IHDR", "PLTE", "tRNS", "IDAT", "IEND"],
+    "color_types": [0, 2, 3, 4, 6],
+    "sample_depths": "PNG-defined combinations of 1/2/4/8/16 bits",
+    "compression_filter_interlace_methods": [0, 0, 0],
+    "structure": "Full signature, unique first IHDR, bounded chunk sizes and all CRCs; palette/transparency lengths, order and sample range; consecutive IDATs; unique zero-length IEND exactly at EOF.",
+    "decode": "One complete zlib stream consuming all concatenated IDAT payload, exact filtered row byte count and checksum, followed by complete standard-library pixel decoding and explicit palette index bounds.",
+    "unsupported": "Ancillary chunks other than tRNS, animation, EXIF/ICC/text metadata, unknown chunks, interlacing and trailing data are HOLD. No unknown content is skipped."
+  },
+  "jpeg": {
+    "references": ["https://www.w3.org/Graphics/JPEG/itu-t81.pdf", "https://www.itu.int/rec/T-REC-T.871-201105-I/en"],
+    "markers": ["SOI", "optional first APP0/JFIF", "DQT", "SOF0", "DHT", "one SOS", "EOI"],
+    "components": "8-bit grayscale component 1, or YCbCr components 1/2/3 with Y sampling 1x1, 2x1 or 2x2 and chroma 1x1; single interleaved baseline scan.",
+    "jfif": "Optional JFIF 1.00/1.01/1.02, valid density units, nonzero densities, no thumbnail.",
+    "tables": "Unique 8-bit nonzero quantization tables; unique baseline DC/AC Huffman tables 0/1 with bounded canonical codes and legal distinct symbols; all referenced tables present.",
+    "structure": "Exact segment bounds, full component scan, baseline spectral fields, exact MCU/block count, Huffman run/category validation and 11-bit signed DC coefficient bounds, FF00 stuffing, one-bit padding and EOI exactly at EOF; complete standard-library pixel decoding follows.",
+    "unsupported": "Progressive/extended/lossless coding, multiple scans, restart intervals/markers, APP metadata other than the allowed JFIF, comments, unknown markers, redefined tables, fill bytes and trailing data are HOLD."
+  },
+  "metadata": "Expected types png/jpeg, .png or .jpg/.jpeg extensions, image/png or image/jpeg MIME; unspecified/octet-stream permitted; contradictory claims are HOLD.",
+  "required_av_input_count": "One per original or extracted image instance; raster pixels are not emitted as a new file or counted as another AV input.",
+  "failure": "HOLD/UNSUPPORTED_FORMAT for malformed or outside-profile images; HOLD/LIMIT_EXCEEDED for decoded raster budget.",
+  "accepted_image_is_filegate_pass": false
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "scope": "stage0 OS-process driver, not FileGate product acceptance",
+  "why_isolated_process_checks_are_needed": "The full VM path requires a user-terminal LaunchAgent proof. Before running it, real OS signals/pipes/process groups must verify the concrete broker-survives-Ctrl-C failure; pure result mocks cannot detect a surviving process.",
+  "failure_modes": [
+    "Popen fails before any child exists: retain preparation intent; no invented stop proof",
+    "timeout while child/descendant live: interrupt dedicated control group, bounded kill/wait if required",
+    "group leader exits on interrupt but grandchild ignores it: still kill the remaining owned process group",
+    "PID/PGID reuse while stopping: retain the direct child unreaped until the final group signal; never signal an already reaped child group",
+    "output exceeds 1 MiB: stop producer while receiving; no unbounded drain/buffer",
+    "selector/read raises after process creation: same bounded stop and wait",
+    "suite receives SIGINT/KeyboardInterrupt: separate broker group may not survive the caller",
+    "a second SIGINT during cleanup: finish the bounded child-group stop before restoring the interrupt handler",
+    "output EOF before process exit: bounded wait; no success from EOF alone",
+    "preparation fails before prepared.json: known run/raw identity remains tied to 4 GiB reservation",
+    "source/catalog/proof changes between cases: refuse the next preparation and run",
+    "missing native stop or label proof: retain raw reservation and stop suite",
+    "artifact copy fails/exceeds bound: fail case; reclaim raw only if separate stop proof is complete",
+    "raw unlink/directory sync fails: do not finalize reservation charge"
+  ],
+  "minimum_isolated_cases": ["real SIGINT to controller with separate child group", "real timeout", "real producer output overflow", "leader exits before ignoring descendant", "second SIGINT during cleanup"],
+  "forbidden_inference": "These isolated process checks do not prove QEMU/HVF, actual LaunchAgent cleanup, AV or full application crash recovery"
+}

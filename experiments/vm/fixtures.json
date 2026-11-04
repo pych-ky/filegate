@@ -1,0 +1,270 @@
+{
+  "schema": 1,
+  "stage": 0,
+  "production_enabled": false,
+  "raw_bytes": 4294967296,
+  "workspace_stop_free_bytes_below": 67108864,
+  "workspace_stop_free_inodes_below": 128,
+  "fixtures": {
+    "transfer": {
+      "expected_terminal": "result",
+      "expected_stop_reason": null,
+      "kind": "target_environment_syscalls"
+    },
+    "av-observation": {
+      "expected_terminal": "av_result",
+      "expected_stop_reason": null,
+      "kind": "target_environment_AV"
+    },
+    "av-limits": {
+      "expected_terminal": "av_limits_result",
+      "expected_stop_reason": null,
+      "kind": "target_environment_AV_limit_observations"
+    },
+    "av-hard": {
+      "expected_terminal": "av_hard_result",
+      "expected_stop_reason": null,
+      "kind": "target_environment_AV_hard_limits_and_dependency_API_comparison"
+    },
+    "av-io": {
+      "expected_terminal": "av_io_result",
+      "expected_stop_reason": null,
+      "kind": "target_environment_AV_real_POSIX_permission_failures"
+    },
+    "freshclam-adapter": {
+      "expected_terminal": "freshclam_result",
+      "expected_stop_reason": null,
+      "kind": "target_environment_trusted_offline_build_and_FreshClam_loopback"
+    },
+    "input-hash-mismatch": {
+      "expected_terminal": "input_error",
+      "expected_reason": "INPUT_HASH_MISMATCH",
+      "expected_stop_reason": null,
+      "kind": "target_environment_syscalls"
+    },
+    "workspace-root-copyup": {
+      "expected_terminal": null,
+      "expected_stop_reason": "WORKSPACE_LIMIT",
+      "kind": "target_environment_root_OverlayFS_capacity",
+      "start_action": "write_and_fsync_until_work_limit",
+      "start_target_paths": [
+        "/etc/filegate-stage0-copyup.seed"
+      ]
+    },
+    "workspace-tmp": {
+      "expected_terminal": null,
+      "expected_stop_reason": "WORKSPACE_LIMIT",
+      "kind": "target_environment_ext4_capacity",
+      "start_action": "write_and_fsync_until_work_limit",
+      "start_target_paths": [
+        "/tmp/filegate-stage0/synthetic-pressure"
+      ]
+    },
+    "workspace-var-tmp": {
+      "expected_terminal": null,
+      "expected_stop_reason": "WORKSPACE_LIMIT",
+      "kind": "target_environment_ext4_capacity",
+      "start_action": "write_and_fsync_until_work_limit",
+      "start_target_paths": [
+        "/var/tmp/filegate-stage0/synthetic-pressure"
+      ]
+    },
+    "workspace-run": {
+      "expected_terminal": null,
+      "expected_stop_reason": "WORKSPACE_LIMIT",
+      "kind": "target_environment_ext4_capacity",
+      "start_action": "write_and_fsync_until_work_limit",
+      "start_target_paths": [
+        "/run/filegate-stage0/synthetic-pressure"
+      ]
+    },
+    "workspace-avtmp": {
+      "expected_terminal": null,
+      "expected_stop_reason": "WORKSPACE_LIMIT",
+      "kind": "target_environment_ext4_capacity",
+      "start_action": "write_and_fsync_until_work_limit",
+      "start_target_paths": [
+        "/job/avtmp/synthetic-pressure"
+      ]
+    },
+    "workspace-extract": {
+      "expected_terminal": null,
+      "expected_stop_reason": "WORKSPACE_LIMIT",
+      "kind": "target_environment_ext4_capacity",
+      "start_action": "write_and_fsync_until_work_limit",
+      "start_target_paths": [
+        "/job/extract/synthetic-pressure"
+      ]
+    },
+    "workspace-mixed": {
+      "expected_terminal": null,
+      "expected_stop_reason": "WORKSPACE_LIMIT",
+      "kind": "target_environment_simultaneous_writes_to_same_ext4",
+      "start_action": "write_and_fsync_until_work_limit",
+      "start_target_paths": [
+        "/tmp/filegate-stage0/synthetic-pressure",
+        "/var/tmp/filegate-stage0/synthetic-pressure",
+        "/run/filegate-stage0/synthetic-pressure",
+        "/job/avtmp/synthetic-pressure",
+        "/job/extract/synthetic-pressure"
+      ]
+    },
+    "workspace-inodes": {
+      "expected_terminal": null,
+      "expected_stop_reason": "WORKSPACE_LIMIT",
+      "kind": "target_environment_ext4_inodes",
+      "start_action": "create_files_until_inode_limit",
+      "start_target_paths": [
+        "/job/extract/inode-*"
+      ]
+    },
+    "workspace-boundary": {
+      "expected_terminal": "fixture_result",
+      "expected_stop_reason": null,
+      "kind": "trusted_guest_block_write_beyond_capacity"
+    },
+    "workspace-sync-failure": {
+      "expected_terminal": null,
+      "expected_stop_reason": "WORKSPACE_IO_ERROR",
+      "kind": "explicit_sync_EIO_fault_injection_NOT_actual_media_failure",
+      "start_action": "inject_sync_EIO_after_synthetic_write",
+      "start_target_paths": [
+        "/job/extract/sync-injection"
+      ]
+    },
+    "workspace-monitor-stop": {
+      "expected_terminal": null,
+      "expected_stop_reason": "RESOURCE_MONITOR_FAILED",
+      "kind": "target_environment_guest_monitor_SIGSTOP",
+      "start_action": "SIGSTOP_guest_workspace_monitor",
+      "start_target_paths": [
+        "/job"
+      ]
+    },
+    "workspace-monitor-failure": {
+      "expected_terminal": null,
+      "expected_stop_reason": "RESOURCE_MONITOR_FAILED",
+      "kind": "target_environment_statfs_ENOENT",
+      "start_action": "replace_monitor_and_remove_statfs_target",
+      "start_target_paths": [
+        "/job/metadata/monitor-target"
+      ]
+    },
+    "workspace-reuse": {
+      "expected_terminal": "fixture_result",
+      "expected_stop_reason": null,
+      "kind": "target_environment_fsync_then_truncate_reuse",
+      "cumulative_write_bytes": 5368709120
+    },
+    "av-remaining": {
+      "expected_terminal": "av_remaining_result",
+      "expected_stop_reason": null,
+      "kind": "target_environment_AV_remaining_boundary_pairs"
+    },
+    "av-internal": {
+      "expected_terminal": "av_internal_result",
+      "expected_stop_reason": null,
+      "kind": "target_environment_AV_HFS_VBA_internal_boundary_pairs"
+    },
+    "workspace-block-io": {
+      "expected_terminal": null,
+      "expected_stop_reason": "RESOURCE_MONITOR_FAILED",
+      "kind": "QEMU_blkdebug_injected_block_EIO_pause_NOT_actual_media_failure",
+      "start_action": "write_and_fsync_after_host_block_EIO_arm",
+      "start_target_paths": [
+        "/job/extract/block-io-probe"
+      ]
+    },
+    "av-pe-import": {
+      "expected_terminal": "av_pe_import_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_AV_boundary_observation"
+    },
+    "av-regex": {
+      "expected_terminal": "av_regex_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_AV_boundary_observation"
+    },
+    "av-icons": {
+      "expected_terminal": "av_icons_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_AV_boundary_observation"
+    },
+    "av-parser-routes": {
+      "expected_terminal": "av_parser_routes_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_AV_boundary_observation"
+    },
+    "av-codec-bounds": {
+      "expected_terminal": "av_codec_bounds_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_AV_codec_header_and_dictionary_bounds"
+    },
+    "av-lzma-wrappers": {
+      "expected_terminal": "av_lzma_wrappers_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_AV_LZMA_allocation_and_unsupported_codec_paths"
+    },
+    "av-decoder-wrappers": {
+      "expected_terminal": "av_decoder_wrappers_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_AV_decoder_errors_and_mspack_output_truncation"
+    },
+    "av-deflate64-wrapper": {
+      "expected_terminal": "av_deflate64_wrapper_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_ZIP_method9_control_and_decoder_error"
+    },
+    "av-tar-scope": {
+      "expected_terminal": "av_tar_scope_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_TAR_control_and_partial_output_paths"
+    },
+    "av-text-parsers": {
+      "expected_terminal": "av_text_parsers_result",
+      "expected_stop_reason": null,
+      "kind": "target_fixed_profile_RTF_TNEF_UUENCODED_selected_parser_results"
+    },
+    "format-contract": {
+      "expected_terminal": "format_contract_result",
+      "expected_stop_reason": null,
+      "kind": "product_ZIP32_TXT_structure_contract_without_AV"
+    },
+    "product-inspect": {
+      "expected_terminal": "product_result",
+      "expected_stop_reason": null,
+      "kind": "product_structure_inspection_without_AV"
+    },
+    "product-av-normalization": {
+      "expected_terminal": "product_av_result",
+      "expected_stop_reason": null,
+      "kind": "harmless_fixture_definitions_Go_AV_normalization_without_product_adoption"
+    }
+  },
+  "every_boot_preflight": [
+    "exactly_three_fixed_block_devices_and_capacity_readonly_flags",
+    "exact_mount_allowlist_with_only_64MiB_4096inode_shm_RAM_exception",
+    "all_root_and_job_write_destinations_reach_fixed_work",
+    "root_copyup_with_lower_digest_unchanged",
+    "nonroot_CAP_SYS_ADMIN_absent_mount_and_user_namespace_and_block_open_denied",
+    "readonly_base_and_definition_write_open_denied",
+    "only_loopback_exists_and_is_UP_with_loopback_addresses",
+    "swap_and_core_dump_disabled",
+    "dedicated_guest_monitor_running_before_transfer_ACK"
+  ],
+  "runtime_status": "not_run",
+  "still_not_proven_by_fault_injection": [
+    "actual_host_block_IO_failure_causes_QEMU_pause_and_watchdog_stop",
+    "actual_media_fsync_failure",
+    "transient_internal_ClamAV_IO_errors_not_reported_by_the_engine"
+  ],
+  "fixture_start_contract": {
+    "required_for": "fixtures with expected_stop_reason",
+    "host_artifact_schema": 2,
+    "host_artifact_limit_bytes": 1048576,
+    "host_durable_start_before_ack": true,
+    "started_is_not_completion_or_limit_proof": true,
+    "protocol_ack_ascii": "FIXTURE_READY",
+    "protocol_ack_terminator": "LF"
+  }
+}

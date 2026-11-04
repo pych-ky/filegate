@@ -1,0 +1,138 @@
+{
+  "schema": 1,
+  "profile": {
+    "profile_id": "filegate-standard-av-1.4.6-candidate-v1",
+    "settings": {
+      "scan-archive": "yes",
+      "scan-pe": "yes",
+      "scan-elf": "yes",
+      "scan-mail": "yes",
+      "scan-html": "yes",
+      "scan-ole2": "yes",
+      "scan-pdf": "yes",
+      "scan-swf": "yes",
+      "scan-xmldocs": "yes",
+      "scan-hwp3": "yes",
+      "scan-onenote": "yes",
+      "scan-image": "yes",
+      "scan-image-fuzzy-hash": "yes",
+      "normalize": "yes",
+      "bytecode": "yes",
+      "bytecode-unsigned": "no",
+      "bytecode-mode": "Auto",
+      "bytecode-timeout": "10000",
+      "phishing-sigs": "yes",
+      "phishing-scan-urls": "yes",
+      "heuristic-alerts": "yes",
+      "detect-structured": "no",
+      "heuristic-scan-precedence": "no",
+      "allmatch": "no",
+      "alert-exceeds-max": "yes",
+      "alert-encrypted": "yes",
+      "alert-macros": "yes",
+      "alert-broken": "yes",
+      "alert-broken-media": "yes",
+      "max-filesize": "262144000",
+      "max-scansize": "1342177280",
+      "max-files": "10000",
+      "max-recursion": "17",
+      "max-scantime": "120000",
+      "max-embeddedpe": "41943040",
+      "max-htmlnormalize": "41943040",
+      "max-htmlnotags": "8388608",
+      "max-scriptnormalize": "20971520",
+      "max-ziptypercg": "1048576",
+      "max-partitions": "50",
+      "max-iconspe": "100",
+      "max-rechwp3": "16",
+      "pcre-match-limit": "100000",
+      "pcre-recmatch-limit": "2000",
+      "pcre-max-filesize": "104857600"
+    },
+    "settings_sha256": "08eaa97d240dde9866c14e709bbf937dbff04c068e28676e690146b150ae7477",
+    "enabled": false,
+    "av_coverage_assurance": "standard_engine_best_effort"
+  },
+  "measured_host_os": {
+    "version": "27.2",
+    "build": "26B123"
+  },
+  "evidence": {
+    "scan_manifest": {
+      "path": "experiments/evidence/20261028-text-runtime-candidate-02/sources/experiments/av/scan-manifest.json",
+      "sha256": "47be9f07e65948d76d6cf46b38d2baf73cddcccd7562a7a3011e19af9d982b8c"
+    },
+    "scan_exchange": {
+      "path": "experiments/artifacts/20261028-text-parsers-orca-01/01-av-observation/exchange.json",
+      "sha256": "458dad5720c67d2c9865d8a2d2b9c7109aa5256beddfc8ac6b52feeca1f1a186"
+    },
+    "scan_result": {
+      "path": "experiments/artifacts/20261028-text-parsers-orca-01/01-av-observation/result.json",
+      "sha256": "115b3ee732e1cff575f5c7683bb4c2de8b15ca5be5ce3ef19056483b5dad1dd7"
+    },
+    "scan_prepared": {
+      "path": "experiments/artifacts/20261028-text-parsers-orca-01/01-av-observation/prepared.json",
+      "sha256": "028ce4aaa34121572fadfb2e8ec95521c2211380379a469ab107b3011252d3a9"
+    },
+    "scan_suite": {
+      "path": "experiments/artifacts/20261028-text-parsers-orca-01/results.json",
+      "sha256": "e092176069d02ba1dd18e43d0530c4dde70fb04a39d8df0263f8b9f336e6f8ac"
+    },
+    "scan_watchdog": {
+      "path": "experiments/artifacts/20261028-text-parsers-orca-01/01-av-observation/watchdog/results.json",
+      "sha256": "7f6333f0b0ad94f0d63c8dead85fd45eed0f076d7ae4afee50b68670f6ddc782"
+    },
+    "adapter_build": {
+      "path": "experiments/av/fixed_adapter_builder/artifacts/20261028-preparation-04/results.json",
+      "sha256": "256702edc378038f0393f9ecfbf617999187b2ff9d60c618b46bfb32892801f4"
+    },
+    "adapter_manifest": {
+      "path": "experiments/av/fixed_adapter_builder/artifacts/20261028-preparation-04/output/artifact-manifest.json",
+      "sha256": "fefedac4e88ea3ee3402f2fc026a48941dc451f73175ffa6bc54bc8c20e7aa82"
+    },
+    "adapter_exchange": {
+      "path": "experiments/artifacts/20261028-os272-av-orca-01/07-freshclam-adapter/exchange.json",
+      "sha256": "36479aac26f69e2c922822a408cdf022ac3d86ef3d52c338770d5f63539f52f4"
+    },
+    "adapter_result": {
+      "path": "experiments/artifacts/20261028-os272-av-orca-01/07-freshclam-adapter/result.json",
+      "sha256": "e328a11220332c3696c410ca010ef007f41c423b57d0155933b25062d5191c12"
+    },
+    "adapter_suite": {
+      "path": "experiments/artifacts/20261028-os272-av-orca-01/results.json",
+      "sha256": "4fac0a5dce52af43c4c54ab2ae6d0893993d667e7c68329efc3c8bcf73733454"
+    },
+    "host_bridge": {
+      "path": "experiments/update/artifacts/20261028-target-bridge-01/results.json",
+      "sha256": "12c1ba2a903767403981c3cfe4e35461dd957959448e9256edb161a2d95b5291"
+    },
+    "adapter_inputs": {
+      "path": "experiments/av/fixed_adapter_builder/artifacts/20261028-preparation-04/inputs/inputs.json",
+      "sha256": "cf00ceaade28a64eb4c416d989ab602ba14f06fabef640130e376d964befb54f"
+    },
+    "scan_candidate": {
+      "path": "experiments/evidence/20261028-text-runtime-candidate-02/results.json",
+      "sha256": "d1474ec93cdb8f26aad46beca9c28b26c9bd8f0d94c74b8f4e703720c931afee"
+    },
+    "adapter_prepared": {
+      "path": "experiments/artifacts/20261028-os272-av-orca-01/07-freshclam-adapter/prepared.json",
+      "sha256": "fb3de5750272ab7ce6683d031bc7b0471650ff60e078bba3c7282d39a7d20d6f"
+    },
+    "adapter_watchdog": {
+      "path": "experiments/artifacts/20261028-os272-av-orca-01/07-freshclam-adapter/watchdog/results.json",
+      "sha256": "ae0e6f874c5135ec444a6c7fc782c6d651199c16a6212cca0f703b309a105229"
+    },
+    "adapter_candidate": {
+      "path": "experiments/evidence/20261028-os272-av-candidate-01/results.json",
+      "sha256": "8ddd6b8e18ef0c7f27c925130370d9fba9c0e87c64eb24b0b12e009989de9a33"
+    },
+    "host_launch_proof": {
+      "path": "experiments/host/artifacts/20261028-os272-launch-orca-01/results.json",
+      "sha256": "03435dcf653185fd0f0a0c006a72da93e6af6a193ba61076b34ee0507a54ee5f"
+    }
+  },
+  "host_bridge_measured_host_os": {
+    "version": "27.0.1",
+    "build": "26A434"
+  }
+}

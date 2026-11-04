@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "profile_id": "filegate-ooxml-v1",
+  "status": "experimental_limited_profile",
+  "references": [
+    "https://learn.microsoft.com/en-us/office/open-xml/general/how-to-create-a-package",
+    "https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/structure-of-a-spreadsheetml-document",
+    "https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/working-with-the-shared-string-table",
+    "https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.cell",
+    "https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.simplefield",
+    "https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.fieldchar"
+  ],
+  "zip": "The existing ZIP32 Profile 1 validator performs layout, tree, standard-reader agreement, CRC, exact stream-end and shared resource checks before XML parsing. Each member is extracted once; original package and every part remain separate AV inputs.",
+  "namespaces": {
+    "word": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "spreadsheet": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    "office_relationship": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "package_relationship": "http://schemas.openxmlformats.org/package/2006/relationships",
+    "content_types": "http://schemas.openxmlformats.org/package/2006/content-types"
+  },
+  "package": {
+    "required": ["[Content_Types].xml", "_rels/.rels", "one main part"],
+    "content_types": "Unique Default declarations for rels=package.relationships+xml and optional xml=application/xml; unique Override declarations for existing parts. Every part must match its exact role content type; unused overrides and unknown parts are HOLD.",
+    "relationships": "One root officeDocument relationship to the main part. Unique ASCII NCName IDs; relative or package-absolute internal targets only, without dot components, URI escapes, query, fragment, colon or backslash. Every referenced worksheet and optional sharedStrings must exist and each allowed part must be accounted for.",
+    "directories": "Only ZIP-verified empty directory records that are ancestors of package parts. They remain in the manifest with the existing AV exclusion."
+  },
+  "xml": {
+    "encoding": "UTF-8, optional BOM and XML 1.0 declaration; namespace URI and local name determine semantics independently of prefix. Declared prefixes are restricted to ASCII NCName: [A-Za-z_][A-Za-z0-9_.-]*.",
+    "part_bytes_limit": 8388608,
+    "total_xml_bytes_limit": 16777216,
+    "element_limit_per_package": 100000,
+    "depth_limit": 64,
+    "attributes_per_element_limit": 32,
+    "attribute_value_bytes_limit": 4096,
+    "validation": "One complete root, matching elements, unique expanded-name attributes and valid reserved namespace bindings. UTF-8 and XML 1.0 character rules apply to every byte, including comments. XML S is limited to space/tab/CR/LF; start-tag attributes require an S separator and text outside the root must be literal S, not references or CDATA. Comments are allowed. DTD, entities beyond predefined XML entities, other processing instructions, unknown namespace declarations, elements or attributes are HOLD. Every part is parsed as XML regardless of filename suffix; non-XML parts are outside this profile. Unreferenced parts are included; no mc:Ignorable or AlternateContent skipping."
+  },
+  "docx": {
+    "main_part": "word/document.xml",
+    "optional_part": "word/_rels/document.xml.rels, only an empty Relationships root",
+    "allowed_structure": "document/body/p/r with plain t, tab and br. No attributes except namespace declarations and t's xml:space=default/preserve. Empty body, paragraphs and runs are allowed.",
+    "fields": "fldSimple, fldChar, instrText and delInstrText in the Transitional or Strict Word namespace anywhere in any XML part produce DOCX_FIELD_REQUIRES_REVIEW, regardless of content, prefix, nesting, lock, cache, completeness or relationship reachability.",
+    "unsupported": "All other parts, styles, properties, headers/footers, footnotes/endnotes, comments, glossary, images, tables, settings, hyperlinks, macros, OLE and extensions are HOLD. A literal DDEAUTO text node is permitted."
+  },
+  "xlsx": {
+    "required_parts": ["xl/workbook.xml", "xl/_rels/workbook.xml.rels", "xl/worksheets/sheetN.xml for positive decimal N"],
+    "optional_part": "xl/sharedStrings.xml",
+    "workbook": "workbook/sheets/sheet only; unique positive uint32 sheetId and unique case-insensitive names restricted to 1..31 ASCII letters, digits, underscore, space and hyphen. r:id must resolve to a unique worksheet part.",
+    "worksheet": "worksheet/sheetData/row/c only. Explicit positive row r, strictly ordered rows and cell references, row <=1048576 and column A..XFD; cell row must match its row.",
+    "cells": "Empty or n cells may be blank; otherwise exactly one v with a finite decimal/exponent number. b cells require v=0/1; s cells require a valid shared-string index. inlineStr requires exactly is/t. No styles or other cell attributes.",
+    "shared_strings": "sst/si/t only, unique plain strings; optional uniqueCount equals si count, optional count equals the number of shared-string cell references across worksheets.",
+    "prohibited": "Every f, including empty shared, array/dataTable and cached formulas, definedNames, connections, query, external links, pivot/cache, conditional formatting, validation and table features is HOLD. Other unsupported features also HOLD; no function allowlist.",
+    "unsupported": "styles, theme, document properties, drawings, rich strings/data, date/error/formula-string cell types, metadata, macros, OLE, unknown parts/types/relationships/elements/attributes and extensions are HOLD."
+  },
+  "metadata": "The main content type identifies docx/xlsx. expected_type, .docx/.xlsx extension and concrete OOXML MIME must match. Unspecified/octet-stream are permitted. Generic application/zip and .zip do not describe an OOXML original.",
+  "manifest": "docx/xlsx containers; every internal part is a regular ooxml-part child with an opaque stored name, hash and size. Unknown parts never enable format_checks_complete.",
+  "failure": {
+    "fields": "HOLD/DOCX_FIELD_REQUIRES_REVIEW",
+    "formulas_or_connections": "HOLD/XLSX_FORMULA_OR_CONNECTION",
+    "external_relationships": "HOLD/ACTIVE_CONTENT_REQUIRES_REVIEW",
+    "unknown_or_malformed": "HOLD/UNSUPPORTED_FORMAT",
+    "xml_limits": "HOLD/LIMIT_EXCEEDED",
+    "zip": "Existing ZIP reason codes and confirmed dangerous-path BLOCK behavior are retained."
+  },
+  "accepted_ooxml_is_filegate_pass": false
+}

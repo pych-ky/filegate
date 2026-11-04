@@ -1,0 +1,274 @@
+{
+  "completed_stages": [
+    0
+  ],
+  "current_stage": 1,
+  "customer_operation_enabled": false,
+  "design_version": "0.4.2",
+  "gates": [
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/adopted-bindings.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/scan-manifest.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/evidence/packages.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/vm/evidence/build-inspection.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/mspack_source_binding_candidate/artifacts/20261028-preparation-02/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/host/artifacts/20261028-os272-launch-orca-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/evidence/20261028-text-runtime-actual-independent-01/results.json"
+      ],
+      "id": "target-and-pins",
+      "missing": "stage0 candidate pinning verified; ambient vendor CFLAGS/reproducible APK rebuild/normal scan process maps and official production definitions are not claimed; AV classification completeness is tracked by its separate gate",
+      "proven": "The adopted scan binding identifies the fixed source/APKBUILD recipe, signed APK set, scanner and11 dependency ELF hashes, PCRE/settings/fixture-definition hashes, the63-source text-parser image and current macOS27.2/26B123 native proof. The fixed v5 FreshClam build and current-OS measurements are separately bound. The125-observation matrix retains each selected run's own OS/image scope; the host SQLite bridge was measured on macOS27.0.1. Runtime requires an exact current OS/native death proof.",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-text-parsers-orca-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-current-capacity-orca-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-os272-av-orca-01/01-watchdog-death/result.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-os272-av-orca-01/01-watchdog-death/watchdog/results.json"
+      ],
+      "id": "qemu-hvf-channel-isolation",
+      "missing": "stage0 channel/isolation feasibility verified; product transport and broker integration remain stage1/2",
+      "proven": "NIC-free HVF, dedicated transfer and nonroot isolation passed on macOS27.2 in the adopted text-parser suite and the nine-run capacity suite. The actual QEMU watchdog-death case passed with0.111958s cleanup without broker child signals. Readonly images, source/image identity and raw reclamation are verified for the recorded runs.",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/observation-matrix.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/runtime-observations.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/adopted-bindings.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/xml_dictionary_candidate/artifacts/20261028-private-preparation-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/evidence/20261028-source-scope-independent-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/bytecode_definition_scope_candidate/artifacts/20261028-review-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/mspack_source_binding_candidate/artifacts/20261028-preparation-02/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/dispatch_scope_candidate/artifacts/20261028-preparation-10/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/text_container_scope_candidate/candidate.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/evidence/20261028-text-runtime-actual-independent-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/classification-catalog.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/python-free-go-20261104/python-before-removal.tar.gz",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/python-free-go-20261104/python-removal-receipt.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-current-claim-resolution-overlay.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-current-claim-resolution-parent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-common-result-chain-parent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-embedded-result-chain-parent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-final-claim-resolution-overlay.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-final-claim-resolution-parent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-riff-sis-result-chain-parent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-szdd-lha-precheck-context-parent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/mydoom-control-current/independent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-adoption-supplement.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/normal-update-current/caller25-adoption-supplement-parent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/inactive-observation-specification/specification.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/inactive-observation-specification/binding-map.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/inactive-observation-specification/verification.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/inactive-observation-specification/parent-review-go-current.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/limited-av-binding-v2-candidate/observation-specification.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/limited-av-contract-adoption-20261030/adoption.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/limited-av-binding-v2-candidate/verification.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/profile-migration-candidate/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/v2-runtime-build-candidate/build-output/independent-audit/audit-report.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/v2-runtime-replacement-e2e/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/post-reboot-access-20261031-01/readback.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/official-state-loss-recovery-20261031/restoration-manifest.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-state-file-restore-20261102/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-state-file-restore-20261102/independent-readback.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-current-runtime-migration-20261102/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-current-runtime-migration-20261102/boot-read-revalidation.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/python-cleanup-20261102/existing-go-clock-check/execution.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/host-event-active-reboot-20261031-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/operator-recovery-20261102/active-independent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/host-event-cooldown-reboot-20261031-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/operator-recovery-20261102/cooldown-independent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-current-flow-execution-01/readiness/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/operator-recovery-20261102/ready-independent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-current-flow-execution-01/flow/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/operator-recovery-20261102/flow-independent-review.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-ingress-negative-current-candidate-02/execution-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/operator-recovery-20261102/ingress-independent-review.json"
+      ],
+      "id": "av-observation-contract",
+      "latest_ingress_negatives": {
+        "after": {
+          "path": "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-ingress-negative-current-candidate-02/execution-01/missing-target/after.json",
+          "sha256": "9408f7f34cf5acd59540bcd530ab4a41eb4bbf6d145d9882818c94745a395cab"
+        },
+        "definition_generation": 4,
+        "independent": {
+          "path": "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/operator-recovery-20261102/ingress-independent-review.json",
+          "sha256": "9dd181f485ad2d2448775f109046a124bdfc69a028a613bed5d5b2dd59f8035f"
+        },
+        "launcher_exit_code": 0,
+        "new_adoptions": 0,
+        "new_update_attempts": 0,
+        "ordinary_rescan_POSTs": 3,
+        "result": {
+          "path": "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-ingress-negative-current-candidate-02/execution-01/results.json",
+          "sha256": "58a467ab2512d1d12e6afc7fd85faeb0baf4fa8637fa53c48072219ebaa85e78"
+        },
+        "same_UUID": "ff2132cc-a441-41fd-9fa0-19dc3cf05bfb",
+        "scope": "Three current ordinary guarded VM ingress negatives, each one changed field in an actual clean D0 report. Host refused D1 before ACK, FAILED/HOLD and normal cancellation/native cleanup. Native/report aggregate false values retained. No update/adoption, original/UUID/definition/history preserved.",
+        "stage_acceptance": false,
+        "stopped_SQLite": {
+          "path": "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-ingress-negative-current-candidate-02/execution-01/missing-target/after.sqlite",
+          "sha256": "2bfedded6d3c6cb88e63794565d4cd798a03e8c4b42a6c228ee5b0e55a70c870"
+        }
+      },
+      "latest_normal_flow": {
+        "after": {
+          "path": "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-current-flow-execution-01/flow/after.json",
+          "sha256": "15c724af2c1d2e1e5a362d0acd4c071958a6111823a37a6e744353235faeba59"
+        },
+        "current_registry_sha256": "bb07fc52ade9efc18815f362aa85086fb7b8bc945ec64ac3500e5a8f2c9fc758",
+        "definition_generation": 4,
+        "independent": {
+          "path": "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/operator-recovery-20261102/flow-independent-review.json",
+          "sha256": "ec9e41fe3c28d4c620b06f3ec9234081eda59b64085e501c10f89a538f9345eb"
+        },
+        "launcher_exit_code": 0,
+        "normal_current_clock_works_in_operator_context": true,
+        "result": {
+          "path": "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-current-flow-execution-01/flow/results.json",
+          "sha256": "49081a25ceedaaa694798b80ea850e523ab311a693333efd83168a9fccc12a90"
+        },
+        "same_UUID": "ff2132cc-a441-41fd-9fa0-19dc3cf05bfb",
+        "scan_attempt_id": "attempt_dba94e22f1361374b77838e8b88777c1",
+        "scope": "Current host9381/registrationbb07 same normal installation, genuine full official update and generation4 host adoption, same-original limited-v2 clean AV/HOLD scan, native stop/cleanup and zero reservations. No Stage0/PASS/release acceptance.",
+        "stage_acceptance": false,
+        "stopped_SQLite": {
+          "path": "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/normal-current-flow-execution-01/flow/after.sqlite",
+          "sha256": "22b2fbbe96183da6e5c57950c2a81070f0dd2a26c0d2f2042b854e7fbaf86216"
+        },
+        "update_id": "update_05b4f44901615af9aca65ccf46c1f28e"
+      },
+      "missing": "No Stage0 normal-binding requirement remains. The explicitly adopted five internal scopes remain best effort and not independently verified. Later-stage release/lifecycle/timeout acceptance is separate.",
+      "proven": "The current catalog100/matrix109 binds125 immutable target observations to fixed source, engine, settings, input, fixture definitions and per-run images. The adopted16 run bindings retain successful basic7, limits19, hard13, IO2, remaining8, internal7, PE8, ERE6, icons3, parser routes5, codec13, LZMA7, decoder10, Deflate64/TAR10 and text7 observations with their recorded OS/image scope. Normal warnings/errors and limit notices remain distinct from debug-only or source-inferred behavior: mandatory IO failures and XZ limit notices map to HOLD, not malware. XML dictionary causality, ERE/certificate source scope and external libmspack provenance remain separately bound. TAR partial-output HDB diagnostics do not change normal verdicts or add observations; MAXD binds the shared wrapper return, not direct guard reachability. Text observations preserve TNEF warning HOLD, two benign member-only detections, RTF text-only scope and an unobserved UU prefix hash. Eight canonical text source rows are active; three have historical scoped measurements. The later25-row supplement resolves its42 finite classification questions without relabelling source facts as runtime measurements. Canonical source classifications cover selected conditions for22 of24 original entries without transferring unrelated caller observations. The independently reviewed archive7 and executable/archive7 entries add23 rows with38 selected conditions, bound to current source ranges and dispatch10; AUTOIT/ISHIELD_MSI remain held. The production profile remains disabled under standard_engine_best_effort. Separate parent-reviewed supplements answer40 source-scoped and2 selected-runtime claims of the unchanged42-unit/25-row map. SIS9.x deep-entry nonreachability, CPIO metadata/traversal, fixed LHA/OneNote dependency boundaries, BinHex two selected MaxFileSize notices the selected benign Mydoom ordinary nonmatch, and direct/embedded result-chain distinctions are retained at their stated scopes; no new canonical observation, production-profile activation or stage acceptance follows. An inactive specification now binds canonical125 and the separate25-row/42-condition supplement, with12 current Go/control binding locations,241 candidate checks and43 parent checks. It does not modify the active digest, profile, definitions or acceptance gates. On 2026-10-30 the user explicitly adopted the limited-contract proposal and its five named not-independently-verified internal scopes. BASIC_DESIGN Chapters6/14 were updated exactly as proposed. The repository source now binds limited-v2 and immutable observation specification 9911ded74d6240baf219dab9bb9b9cb185c913274dd63d42993d69df04dbcbca, including the historical125 observations and separate25-row/42-condition supplement. The frozen limited-v2 host/guest/update-image/registration candidate was built in go-limited-v2-verification and independently audited across3982 checks. Dedicated synthetic-state CLI migration/replay/refusal/interruption evidence passed202 checks. These are source/build and dedicated fixture evidence, not ordinary active registration, official update/scan VM or stage acceptance. On 2026-11-02 the same preboot checkpoint was restored at its original normal-verification path with820 verified files and unchanged30-table DB/control/UUID/prohibitions/history. The actual regular runtime-replace CLI then migrated that restored installation registration from ca499baaefb3bceda38c8e4f1031b3a2ae1789220d636c5568b66baecd2a94e7 to bb07fc52ade9efc18815f362aa85086fb7b8bc945ec64ac3500e5a8f2c9fc758 with Complete=true and byte-identical DB/control. This proves the real restored-data registration boundary only, not ordinary service startup, new definition acquisition/adoption or a scan. On 2026-11-02 the local operator completed the original dedicated active reboot resume on retained host121:19 existing checks and26 independent scoped checks passed, native_previous_boot binds the real new boot, and the original6GiB charge settled to0 without a new attempt or definition adoption. This is dedicated lifecycle evidence, not current-profile ordinary update/scan or stage acceptance. The same operator then completed the original cooldown reboot resume:8 checks and27 independent scoped checks passed, preserving UUID/snapshot and prohibitions with no new attempt or VM. Current host9381/registrationbb07 ordinary startup/readiness is now observed through genuine GET/control poll records; its real inherited3540-second wait and final stop/history verification are still in progress, without POST or VM. Current host9381/registrationbb07 ordinary readiness completed with119 poll records and27 independent checks, preserving the real3540s wait, UUID/prohibitions,28 unchanged history tables and normal stop. update_control advanced normally and update_retention added3 management rows;2 old CLEANUP_PENDING rows remain honestly pending. No update/scan/VM/POST was started in readiness. On 2026-11-02 the operator completed the same-installation current normal flow: genuine three official signed definition artifacts were acquired with HTTP200 and explicit null absent cache, host-adopted as generation4, then used by a schema3 same-original limited-v2/observation9911 scan. AV clean/HOLD, original UUID/prohibitions/history, update600/scan300 deadlines and native stop/cleanup with zero reservations passed independent39 checks. This supersedes earlier pending ordinary-flow statements; old generation3 filesystem identity was not relabelled. On 2026-11-02 FileGate5 completed three ordinary current-profile single-fault ingress VM cases (tuple mismatch, unknown object status, missing target). Independent62 checks confirm genuine D0/dispatch binding, exact D1 fault, refusal before ACK, FAILED/HOLD and native cancellation/cleanup with zero reservation and no update/adoption. Original native/report aggregate false values remain unchanged; only scoped rejection/cleanup is accepted. Normal limited-v2 version-binding evidence is now complete.",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/http/artifacts/20261027-framing-05/results.json"
+      ],
+      "id": "http-framing-feasibility",
+      "missing": "production transport integration and stage1 acceptance fixtures remain outside this experiment",
+      "proven": "31 loopback TLS HTTP1/HTTP2 fixtures; TE+CL baseline normalization and pre-normalization rejection",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/host/artifacts/20261028-os272-resource-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/host/artifacts/20261028-os272-launch-orca-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-os272-av-orca-01/01-watchdog-death/watchdog/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/host/boot_recovery_candidate/artifacts/20261028-cli-04/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/evidence/20261028-current-capacity-independent-01/results.json"
+      ],
+      "id": "host-resource-and-termination",
+      "missing": "stage0 resource/termination primitives verified on pinned native and target QEMU; product integration, OS restart/sleep and full recovery remain stage1/2/3",
+      "proven": "The pinned native on macOS27.2 passed20 synthetic IPC/resource/termination cases, LaunchAgent watchdog-death cleanup2.184304s and actual QEMU watchdog-death cleanup0.111958s. The nine current-capacity trials independently confirmed guardian/child termination, service absence, raw reclamation and zero reservation with unchanged protection and stop thresholds. Recovery CLI16 synthetic filesystem cases passed; they do not prove real reboot or full product recovery.",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-current-capacity-orca-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/evidence/20261028-current-capacity-independent-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-vm-suite-user-01/14-workspace-inodes/result.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-vm-suite-user-01/14-workspace-inodes/fixture-observation.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-vm-suite-user-01/15-workspace-boundary/result.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-vm-suite-user-01/19-workspace-reuse/result.json"
+      ],
+      "id": "fixed-raw-overlay-and-all-writes",
+      "missing": "stage0 fixed-raw/write-path capacity feasibility verified; product reservation/concurrency/crash settlement and retention remain stage1/3",
+      "proven": "On macOS27.2, all seven allowed write paths root-copyup/tmp/var-tmp/run/avtmp/extract/mixed reached WORKSPACE_LIMIT at free_bytes66650112-66666496, below64MiB, on fully allocated fixed4GiB raw work disks with unchanged RAM and thresholds. The recorded61-source/image suite verified readonly base/definitions, OverlayFS/write-path preflight, all nine raw reclamations and zero reservation. The selected successful inode, boundary and fresh-work reuse fixtures retain their original-OS scope; inode exhaustion reached127 free inodes.",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-vm-suite-user-01/14-workspace-inodes/fixture-observation.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-vm-suite-user-01/16-workspace-sync-failure/fixture-observation.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-vm-suite-user-01/17-workspace-monitor-stop/fixture-observation.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-vm-suite-user-01/18-workspace-monitor-failure/result.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-os272-av-orca-01/09-workspace-block-io/result.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-os272-av-orca-01/09-workspace-block-io/watchdog/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-os272-av-orca-01/09-workspace-block-io/block-io-observation.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/evidence/20261028-current-capacity-independent-01/results.json"
+      ],
+      "id": "workspace-and-io-stop",
+      "missing": "physical-media failure is not claimed; full product I/O/recovery fixtures remain later-stage acceptance; all write-path capacity trials are tracked separately",
+      "proven": "Selected successful target fixtures prove inode exhaustion at127 free inodes with WORKSPACE_LIMIT, explicit sync-error injection with WORKSPACE_IO_ERROR, and monitor SIGSTOP/missing heartbeat or failure with RESOURCE_MONITOR_FAILED. On macOS27.2 actual QEMU11.1.2/HVF blkdebug write EIO produced BLOCK_IO_ERROR(action=stop,node=work), STOP and io-error/running=false; the watchdog separately verified heartbeat-triggered full termination, guardian completion, service absence, slot finalization and raw reclamation. Current-OS mandatory AV IO2 failures map to HOLD even when engine exit0/OK; this does not classify unobservable engine-internal IO or prove physical-media failure.",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/host-budgets.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/artifacts/20261027-budget-02/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/evidence/20261028-stage0-contract-scope-01/results.json"
+      ],
+      "id": "host-management-budgets",
+      "missing": "stage1/3 product ledger enforcement, bounded launchctl readback, all production output/storage admission, actual ENOSPC, recovery and retention remain outside this stage0 experiment",
+      "proven": "stage0 finite DB/WAL/SHM/journal/report/log/runtime budget contract and target filesystem SQLite/opaque IO13 cases are source-bound; production16MiB terminal reserve fits32MiB WAL allowance; independent design-stage review separates primitive feasibility from product-wide enforcement",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/artifacts/20261028-os272-deadline-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/artifacts/20261028-os272-deadline-01/host-start.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/artifacts/20261028-os272-deadline-01/host-end.json"
+      ],
+      "id": "update-total-deadline",
+      "missing": "actual adapter report/restore remains in separate stage0 gates; product all-stage600s update/adoption tests are stage2, OS restart/clock/sleep recovery is stage3",
+      "proven": "The pinned resource/guardian native on macOS27.2, using synthetic VM/helper peers and real30s readiness, stopped at600.001850s; all3 children and guardian completion were confirmed2.027421s later without emergency cleanup. Together with the separately verified actual QEMU death/resource/I/O termination, this proves stage0 deadline/stop feasibility only.",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/adopted-bindings.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/evidence/freshclam-patch.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/fixed_adapter_builder/artifacts/20261028-preparation-04/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/av/fixed_adapter_builder/artifacts/20261028-preparation-04/output/artifact-manifest.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-os272-av-orca-01/07-freshclam-adapter/exchange.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/artifacts/20261028-os272-av-orca-01/07-freshclam-adapter/result.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/freshclam-vm/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/freshclam-vm/independent-review.json"
+      ],
+      "id": "freshclam-latest-control-adapter",
+      "missing": "stage0 adapter feasibility verified; official definition acquisition/adoption and product update acceptance remain stage2/3",
+      "proven": "The adopted fixed v5 source/patch/vendor/109 signed APK offline ARM64 build passed upstream tests and binds the exact4-library bundle loaded in the NIC-free macOS27.2 target VM. All nine adapter cases passed, including raw864000-second Retry-After, HTTP-date/fallback, dat-save failure latest memory state, request suppression and truncated UNKNOWN. Runtime protection, termination and raw reclamation were verified. The replacement Go adapter with a small C ABI bridge repeats the same nine cases on the current NIC-free VM using unchanged fixed libraries; 384 independent saved-evidence checks confirm restoration, no extra request, truncation handling and reclamation. This is adapter feasibility, not normal official acquisition by the Go product path.",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/update/artifacts/20261027-control-04/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/update/artifacts/20261028-freshclam-schema-05/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/update/bridge_candidate_02/artifacts/20261028-bridge-03/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/update/artifacts/20261028-target-bridge-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/product-checks/go-migration-current/update-offline-current/results.json"
+      ],
+      "id": "host-update-control-state",
+      "missing": "stage0 actual persistence/restore feasibility verified; product update coordinator/adoption/all600s cases remain stage2 and OS restart/clock/sleep/crash recovery stage3",
+      "proven": "Final synthetic control/clock41, FreshClam schema55 and bridge02 helper/SQLite17 cases passed. The adopted macOS27.0.1 v5 adapter9-case first/restore roundtrip used separate monitored VMs: eight COOLDOWN UUID/maxima restored with zero requests; one incomplete report remained UNKNOWN and skipped. Host SQLite rows were unchanged after restore, and termination/raw reclamation were verified. The macOS27.2 adapter measurement does not extend this prior-OS host-roundtrip scope. A separate current-OS normal Go worker/adapter/host-bridge run rejects forwarding before DNS and persists its actual complete failure Final as COOLDOWN. Its 27 checks cover ACK, no origin confirmation/adoption, original retention, native stop/reclamation and unchanged state after broker restart; the older nine-case host roundtrip remains separately scoped.",
+      "status": "verified_experiment"
+    },
+    {
+      "evidence": [
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/zip32-v1.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/txt-v1.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/artifacts/20261027-normalization-02/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/artifacts/20261027-zip-inputs-05/reproduction.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/contracts/artifacts/20261027-large-inputs-01/results.json",
+        "/Users/pych-ky/Library/Application Support/FileGate/verification/experiments/evidence/20261028-stage0-contract-scope-01/results.json"
+      ],
+      "id": "required-checks-and-fixture-contract",
+      "missing": "stage1 validator and actual acceptance execution, including tool-created OOXML inputs, are not claimed by contract definition or input generation",
+      "proven": "stage0 ZIP32/TXT contracts and all12 responsibility fixture specifications fixed; Unicode17.0 full folding/NFC9 actual primitive cases, 108ZIP/14TXT deterministic inputs and6 real large boundary inputs with hash verification; independent design-stage/source-binding review completed",
+      "status": "verified_experiment"
+    }
+  ],
+  "later_stages": {
+    "1": "implementation_in_progress; Stage0 accepted with explicitly adopted limited AV contract and actual current normal update/scan/negative binding. Genuine PASS/publication acceptance remains unexecuted.",
+    "2": "implementation_in_progress; acceptance_pending_stage1: UI/MCP/limited document validators and actual total update deadline remain version-bound. Product update transport, worker and fixed-library adapter are Go; schema2 adopted-cache and null paths are verified. Guarded same-installation runtime replacement preserved control, UUID and history; one official update reconfirmed all three definitions with HTTP304 and adopted generation2, followed by an ordinary TXT rescan with clean/HOLD and complete cleanup. This is not a new full/delta body download. Unsupported formats remain HOLD.",
+    "3": "implementation_in_progress; acceptance_pending_stage2: retention/recovery/privacy/capacity and four workload measurements remain bound to their saved versions. STOP_BEGIN watchdog death and empty-guardian recovery are verified. A separately bound measurement CLI with unchanged libraries measured public definition-load/compile/scan API intervals for one TXT; these timings do not replace the four workload results. Prior full-update and current304 costs remain distinct. A separately bound timing runtime completed one further ordinary three304 update, adopted generation3, measured public update/verify calls, candidate prehash/transfer/ACK, host verification and image construction, then restored the normal registration after full settlement. Its162 checks and independent saved-evidence review1003 passed. Full/delta method remains unknown, and actual delta-workload measurements and OS restart/clock/sleep acceptance remain incomplete. MATCH resume sync before READY is implemented; genuine-PASS publication and post-gate crash windows remain unexecuted."
+  },
+  "product_interfaces_enabled": true,
+  "schema_version": 1,
+  "stage1_authorized_by_gate": true
+}
