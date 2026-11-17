@@ -129,10 +129,10 @@ func (b *Broker) pendingUpdates(q queryer) (int64, error) {
 func (b *Broker) UpdateState() (UpdateStatus, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.updateStateLocked()
+	return b.updateStateLocked(nil)
 }
 
-func (b *Broker) updateStateLocked() (UpdateStatus, error) {
+func (b *Broker) updateStateLocked(view *releaseView) (UpdateStatus, error) {
 	status := UpdateStatus{ControlState: "UNINITIALIZED"}
 	if b.updates == nil || !b.updates.initialized {
 		return status, nil
@@ -141,12 +141,29 @@ func (b *Broker) updateStateLocked() (UpdateStatus, error) {
 	if err != nil {
 		return status, failure(err.Error(), 503)
 	}
-	control, err := b.updates.store.Read(now)
+	// Status display is optional, so its control writes stay within the management database start budget.
+	admit := func(tx *sql.Tx) error { return b.databaseBudget(tx) }
+	var control updatecontrol.Control
+	var definition updatecontrol.ScanDefinitionState
+	if view == nil {
+		control, err = b.updates.store.ReadAdmitted(now, admit)
+	} else {
+		definition, err = view.readDefinition(b, now, admit)
+		control = definition.Control
+	}
 	if err != nil {
+		var denied *Error
+		if errors.As(err, &denied) {
+			return status, err
+		}
 		return status, failure(err.Error(), 503)
 	}
 	status.ControlState, status.ActiveUpdateID, status.LastUpdateID = control.State, control.ActiveUpdateID, control.LastUpdateID
-	status.DefinitionFresh, err = b.freshScanDefinition(control)
+	if view == nil {
+		status.DefinitionFresh, err = b.freshScanDefinition(control, admit)
+	} else if updatecontrol.Fresh(control, control.Clock) {
+		status.DefinitionFresh, err = currentDefinitionAvailable(definition.DefinitionError)
+	}
 	if err != nil {
 		return status, err
 	}

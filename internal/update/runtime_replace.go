@@ -208,8 +208,28 @@ func replacementState(directory, library string) ([]byte, error) {
 		return nil, Invalid
 	}
 	c, err := loadControl(tx)
-	if err != nil || c.Binding.FixtureOnly || c.Binding.LibrarySHA256 != library || c.ActiveUpdateID != "" || c.State == "IN_FLIGHT" {
+	if err != nil || c.Binding.FixtureOnly || c.Binding.LibrarySHA256 != library {
 		return nil, Invalid
+	}
+	if err := quiescentState(tx, c); err != nil {
+		return nil, err
+	}
+	var control []byte
+	if tx.QueryRow("SELECT data FROM update_control WHERE scope=?", Scope).Scan(&control) != nil {
+		return nil, Invalid
+	}
+	var final unix.Stat_t
+	if unix.Lstat(path, &final) != nil || pinIdentity(final) != databaseIdentity {
+		return nil, Invalid
+	}
+	return control, nil
+}
+
+// quiescentState requires no active update and no pending intake, scan, deletion, release, update or definition-cache
+// work; runtime replacement and offline state compaction both depend on it.
+func quiescentState(tx *sql.Tx, c Control) error {
+	if c.ActiveUpdateID != "" || c.State == "IN_FLIGHT" {
+		return Invalid
 	}
 	for _, query := range []string{
 		"SELECT count(*) FROM update_control WHERE scope!='official-definitions-installation'",
@@ -230,57 +250,49 @@ func replacementState(directory, library string) ([]byte, error) {
 	} {
 		var count int
 		if tx.QueryRow(query).Scan(&count) != nil || count != 0 {
-			return nil, Busy
+			return Busy
 		}
 	}
 	rows, err := tx.Query("SELECT id FROM update_attempts")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var ids []string
 	for rows.Next() {
 		var id string
 		if rows.Scan(&id) != nil {
 			rows.Close()
-			return nil, Invalid
+			return Invalid
 		}
 		ids = append(ids, id)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, id := range ids {
 		a, err := loadAttempt(tx, id)
 		if err != nil || a.State != "FINISHED" || !a.StopConfirmed || !a.CleanupConfirmed || a.ReservedBytes != 0 {
-			return nil, Busy
+			return Busy
 		}
 	}
 	var hasCache int
 	if tx.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='update_definition_caches'").Scan(&hasCache) != nil {
-		return nil, Invalid
+		return Invalid
 	}
 	if hasCache != 0 {
 		var orphan int
 		if tx.QueryRow("SELECT count(*) FROM update_definition_caches WHERE update_id NOT IN (SELECT update_id FROM update_runtime)").Scan(&orphan) != nil || orphan != 0 {
-			return nil, Invalid
+			return Invalid
 		}
 		for _, id := range ids {
 			if _, err := loadDefinitionCache(tx, id); err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return nil, err
+				return err
 			}
 		}
 	}
-	var control []byte
-	if tx.QueryRow("SELECT data FROM update_control WHERE scope=?", Scope).Scan(&control) != nil {
-		return nil, Invalid
-	}
-	var final unix.Stat_t
-	if unix.Lstat(path, &final) != nil || pinIdentity(final) != databaseIdentity {
-		return nil, Invalid
-	}
-	return control, nil
+	return nil
 }
 
 func ReplaceRuntime(directory, candidate, expected string) (RuntimeReplacement, error) {

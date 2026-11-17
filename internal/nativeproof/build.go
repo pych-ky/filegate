@@ -73,6 +73,12 @@ func buildBinding(repo, directory string) (*hostvm.Runtime, object, error) {
 	if _, err := canonical(directory); err != nil {
 		return nil, nil, err
 	}
+	// A directory without build.json is accepted only as a validated reuse of the adopted binary.
+	if _, err := os.Lstat(filepath.Join(directory, "build.json")); os.IsNotExist(err) {
+		if _, err = os.Lstat(filepath.Join(directory, "reuse.json")); err == nil {
+			return reuseBinding(repo, directory)
+		}
+	}
 	receipt, _, err := hostvm.Read(filepath.Join(directory, "build.json"), 1<<20)
 	if err != nil {
 		return nil, nil, err

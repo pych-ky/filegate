@@ -36,7 +36,7 @@ func RunFixture(directory, fixture string, hold bool, input io.Reader, output io
 	}
 	catalog, _, err := hostvm.ReadAsset(filepath.Join(filepath.Dir(filepath.Dir(executable)), "fixtures.json"), 1<<20)
 	contract := hostvm.Map(hostvm.Map(catalog, "fixtures"), fixture)
-	if err != nil || hostvm.Int(catalog, "schema") != 1 || contract == nil || fixture == "product-inspect" || fixture == "workspace-block-io" {
+	if err != nil || hostvm.Int(catalog, "schema") != 1 || contract == nil || fixture == "product-inspect" {
 		return invalid
 	}
 	channel := filepath.Join(run, "channel.sock")
@@ -184,6 +184,13 @@ func RunFixture(directory, fixture string, hold bool, input io.Reader, output io
 			if err = saveProgress(filepath.Join(run, "fixture-observation.json"), object{"schema": 2, "fixture": fixture, "started": selected, "acknowledged": false, "last_observation": nil}); err != nil {
 				return err
 			}
+			// workspace-block-io is acknowledged only after the fixed QMP arming and its readback are persisted.
+			var armed *qmpFixture
+			if fixture == "workspace-block-io" {
+				if armed, err = armBlockIO(run); err != nil {
+					return invalid
+				}
+			}
 			if connection.SetWriteDeadline(time.Now().Add(10*time.Second)) != nil {
 				return invalid
 			}
@@ -192,6 +199,9 @@ func RunFixture(directory, fixture string, hold bool, input io.Reader, output io
 			}
 			if err = saveProgress(filepath.Join(run, "fixture-observation.json"), object{"schema": 2, "fixture": fixture, "started": selected, "acknowledged": true, "last_observation": nil}); err != nil {
 				return err
+			}
+			if armed != nil {
+				go armed.observe()
 			}
 		case "fixture_observation":
 			if selected == nil || record["fixture"] != fixture && hostvm.Str(hostvm.Map(record, "result"), "fixture") != fixture {

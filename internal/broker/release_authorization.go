@@ -3,7 +3,9 @@ package broker
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"time"
 
@@ -20,22 +22,57 @@ func completeScanReport(report scanReport) bool {
 		a.NormalResultCount == r.RequiredAVInputCount && report.avValidation.NormalResultCount == r.RequiredAVInputCount
 }
 
-func (b *Broker) readScanRelease(attempt string) (scanReleaseSnapshot, error) {
+// decodeScanRelease applies the stored snapshot's strict JSON, schema, size and attempt bounds; currentness is checked separately.
+func decodeScanRelease(body []byte, attempt string) (scanReleaseSnapshot, bool) {
 	var snapshot scanReleaseSnapshot
+	ok := len(body) <= 1<<20 && strictJSONKeys(body, &snapshot, 4096) == nil && snapshot.Schema >= 1 && snapshot.Schema <= 3 &&
+		(snapshot.Schema != 1 || len(body) <= 256<<10) && snapshot.AttemptID == attempt
+	return snapshot, ok
+}
+
+func (b *Broker) readScanRelease(attempt string) (scanReleaseSnapshot, error) {
 	var body []byte
 	err := b.db.QueryRow("SELECT data FROM scan_release_snapshots WHERE attempt_id=?", attempt).Scan(&body)
-	if err != nil || len(body) > 1<<20 || strictJSONKeys(body, &snapshot, 4096) != nil ||
-		(snapshot.Schema != 1 && snapshot.Schema != 2) || snapshot.Schema == 1 && len(body) > 256<<10 || snapshot.AttemptID != attempt {
+	snapshot, ok := decodeScanRelease(body, attempt)
+	if err != nil || !ok {
 		return snapshot, failure("INCOMPLETE_REQUIRED_CHECKS", 409)
 	}
 	return snapshot, nil
 }
 
+// validateScanRelease is the full check used when a scan result is accepted and by every real release step.
 func (b *Broker) validateScanRelease(run *scanRun, report scanReport) (scanReleaseSnapshot, error) {
-	s, err := b.readScanRelease(run.job.AttemptID)
+	return b.validateScanReleaseView(run, report, nil)
+}
+
+// snapshotCurrent keeps the full current() unless a list or detail request passes its view, which decides each attempt once.
+func (b *Broker) snapshotCurrent(s scanReleaseSnapshot, v *releaseView) bool {
+	if v == nil {
+		return s.current()
+	}
+	if current, ok := v.current[s.AttemptID]; ok {
+		return current
+	}
+	current := s.currentForDisplay(b, v)
+	if len(v.current) < displayRequestAttempts {
+		v.current[s.AttemptID] = current
+	}
+	return current
+}
+
+// scanReleaseFor re-reads and decodes the stored snapshot unless a list or detail request passes its view.
+func (b *Broker) scanReleaseFor(attempt string, v *releaseView) (scanReleaseSnapshot, error) {
+	if v == nil {
+		return b.readScanRelease(attempt)
+	}
+	return v.snapshot(b, attempt)
+}
+
+func (b *Broker) validateScanReleaseView(run *scanRun, report scanReport, v *releaseView) (scanReleaseSnapshot, error) {
+	s, err := b.scanReleaseFor(run.job.AttemptID, v)
 	invalid := failure("INCOMPLETE_REQUIRED_CHECKS", 409)
 	if err != nil || run.definition == nil || !completeScanReport(report) || run.job.InputReceipt == nil ||
-		s.Object != *run.job.InputReceipt || s.Policy != report.PolicyDigest || !s.current() ||
+		s.Object != *run.job.InputReceipt || s.Policy != report.PolicyDigest || !b.snapshotCurrent(s, v) ||
 		*report.AV.Binding != run.definition.Binding {
 		return s, invalid
 	}
@@ -125,11 +162,19 @@ func (b *Broker) validateScanRelease(run *scanRun, report scanReport) (scanRelea
 	if actualErr != nil || plannedErr != nil || !bytes.Equal(actual, planned) {
 		return s, invalid
 	}
-	summary, err := readRuntimeSummary(run)
+	// A view reuses the summary bytes only when they are the results.json just read; otherwise results.json is read again.
+	var summaryBody []byte
+	keep := &summaryBody
+	if v == nil {
+		keep = nil
+	}
+	summary, err := readRuntimeSummaryKeeping(run, keep)
 	if err != nil || !summary.Passed || !summary.ReportAccepted || summary.ReportSHA256 == nil || summary.NativeEvidence == nil || summary.Termination.ReasonCode != "EXCHANGE_COMPLETE" {
 		return s, invalid
 	}
-	summaryBody, err := readPrivate(filepath.Join(output, "results.json"), 64<<10)
+	if summaryBody == nil {
+		summaryBody, err = readPrivate(filepath.Join(output, "results.json"), 64<<10)
+	}
 	if err != nil || !bytes.Equal(encode(summary), canonicalRuntimeSummary(summaryBody)) {
 		return s, invalid
 	}
@@ -160,7 +205,8 @@ func canonicalRuntimeSummary(body []byte) []byte {
 	return encode(value)
 }
 
-func (b *Broker) authorizedReleaseBinding(ctx context.Context, j Job) (releaseBinding, error) {
+// authorizedReleaseBinding with a nil view is the full authorization; only list and detail pass their request's view.
+func (b *Broker) authorizedReleaseBinding(ctx context.Context, j Job, admit func(*sql.Tx) error, v *releaseView) (releaseBinding, error) {
 	invalid := failure("INCOMPLETE_REQUIRED_CHECKS", 409)
 	if j.Phase != "FINISHED" || j.IntakeStatus != "COMMITTED" || len(j.ExecutionErrors) != 0 || len(j.ReasonCodes) != 0 ||
 		len(j.ConfirmedRejections) != 0 || b.updates == nil || !b.updates.enabled || b.config.VM == nil {
@@ -200,11 +246,11 @@ func (b *Broker) authorizedReleaseBinding(ctx context.Context, j Job) (releaseBi
 	if err != nil || definition == nil {
 		return releaseBinding{}, invalid
 	}
-	saved, err := b.readScanRelease(j.AttemptID)
+	saved, err := b.scanReleaseFor(j.AttemptID, v)
 	if err != nil || !validDigest(saved.ReportSHA256) || !validDigest(saved.SummarySHA256) {
 		return releaseBinding{}, invalid
 	}
-	if !saved.current() {
+	if !b.snapshotCurrent(saved, v) {
 		return releaseBinding{}, failure("REVALIDATION_REQUIRED", 409)
 	}
 	report, digest, err := decodeReport(filepath.Join(directory, "output/report.json"), j, &definition.Binding)
@@ -213,16 +259,33 @@ func (b *Broker) authorizedReleaseBinding(ctx context.Context, j Job) (releaseBi
 		return releaseBinding{}, invalid
 	}
 	run := &scanRun{job: j, directory: directory, definition: definition}
-	verified, err := b.validateScanRelease(run, report)
-	if err != nil || !bytes.Equal(encode(saved), encode(verified)) {
+	verified, err := b.validateScanReleaseView(run, report, v)
+	// A view returns the same request-local decode for both reads, so only the two digests validation recomputes can differ.
+	if err != nil || v == nil && !bytes.Equal(encode(saved), encode(verified)) ||
+		v != nil && (verified.ReportSHA256 != saved.ReportSHA256 || verified.SummarySHA256 != saved.SummarySHA256) {
 		return releaseBinding{}, invalid
 	}
 	now, err := updatecontrol.ReadClock()
 	if err != nil {
 		return releaseBinding{}, failure("UPDATE_CLOCK_UNCERTAIN", 503)
 	}
-	current, err := b.updates.store.CurrentScanDefinition(now)
+	var current updatecontrol.ScanDefinition
+	if v == nil {
+		current, err = b.updates.store.CurrentScanDefinitionAdmitted(now, admit)
+	} else {
+		var state updatecontrol.ScanDefinitionState
+		state, err = v.readDefinition(b, now, admit)
+		current = state.Definition
+		if err == nil {
+			err = state.DefinitionError
+		}
+	}
 	if err != nil {
+		// Only admit returns an *Error here; its quota refusal or check failure keeps its own code.
+		var refused *Error
+		if errors.As(err, &refused) {
+			return releaseBinding{}, err
+		}
 		return releaseBinding{}, invalid
 	}
 	if current.Binding != definition.Binding {

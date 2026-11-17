@@ -264,6 +264,31 @@ func readBytesModes(path string, maximum int64, asset bool) ([]byte, error) {
 	}
 	return body, nil
 }
+
+// readAppendOnly reads the bytes present at open from a log whose writer keeps appending during the read.
+func readAppendOnly(path string, maximum int64) ([]byte, error) {
+	fd, e := unix.Open(path, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if e != nil {
+		return nil, e
+	}
+	f := os.NewFile(uintptr(fd), path)
+	defer f.Close()
+	var before, after, current unix.Stat_t
+	if unix.Fstat(fd, &before) != nil || before.Mode&unix.S_IFMT != unix.S_IFREG || before.Uid != uint32(os.Getuid()) || before.Size < 0 || before.Size > maximum || before.Mode&07777 != 0600 {
+		return nil, Error("CONTROL_FILE_INVALID")
+	}
+	body, e := io.ReadAll(io.LimitReader(f, before.Size))
+	if e != nil {
+		return nil, e
+	}
+	if unix.Fstat(fd, &after) != nil || unix.Lstat(path, &current) != nil || int64(len(body)) != before.Size || !appendedOnly(before, after) || !appendedOnly(after, current) {
+		return nil, Error("CONTROL_FILE_CHANGED")
+	}
+	return body, nil
+}
+func appendedOnly(earlier, later unix.Stat_t) bool {
+	return earlier.Dev == later.Dev && earlier.Ino == later.Ino && (later.Size > earlier.Size || later.Size == earlier.Size && later.Mtim == earlier.Mtim)
+}
 func Read(path string, maximum int64) (Object, []byte, error) {
 	b, e := ReadBytes(path, maximum)
 	if e != nil {

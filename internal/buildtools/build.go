@@ -22,19 +22,23 @@ const oldObservationSHA = "2820f79fce99925c4bbf2301c2bae1c1276e8940439ce61926aad
 const rootfsSHA = "4d3f80afaebd447c5591a63a73bde380a149fe8b2d85488cafabb2ff97551f50"
 
 type BuildOptions struct {
-	Repository        string
-	Verification      string
-	Baseline          string
-	BaselineProof     string
-	NativeProof       string
-	NativeBinary      string
-	BaselineBuild     string
-	AdapterBuild      string
-	FreshclamBinary   string
-	FreshclamBuild    string
-	Out               string
-	ReuseRegistration string
-	CheckInputs       bool
+	Repository             string
+	Verification           string
+	Baseline               string
+	BaselineProof          string
+	NativeProof            string
+	NativeBinary           string
+	ReplacementNativeProof string
+	BaselineBuild          string
+	AdapterBuild           string
+	FreshclamBinary        string
+	FreshclamBuild         string
+	Out                    string
+	ReuseRegistration      string
+	ParentRegistration     string
+	GuestFixtures          bool
+	Inspector              bool
+	CheckInputs            bool
 }
 
 type CommandRecord struct {

@@ -17,7 +17,7 @@ import (
 
 func NativeEvents(control string) ([]Object, error) {
 	path := filepath.Join(control, "events.jsonl")
-	body, e := ReadBytes(path, 4<<20)
+	body, e := readAppendOnly(path, 4<<20)
 	if os.IsNotExist(e) {
 		return []Object{}, nil
 	}

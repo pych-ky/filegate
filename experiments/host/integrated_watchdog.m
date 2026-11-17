@@ -148,7 +148,18 @@ static BOOL measure(uint64_t *footprint, uint64_t *resident) {
         errno=0;
         int count=proc_listchildpids(pid,children,sizeof(children));
         if (count<0 || errno || count>=MAX_PROCESSES) return NO;
-        for (int n=0;n<count;n++) if (children[n]>0 && !add_process(children[n],@"descendant")) return NO;
+        for (int n=0;n<count;n++) {
+            if (children[n]<=0) continue;
+            NSDictionary *known=nil;
+            for (NSDictionary *known_item in tracked) if ([known_item[@"pid"] intValue]==children[n]) { known=known_item; break; }
+            struct rusage_info_v4 child_sample,confirmed;
+            if (!usage(children[n],&child_sample) || !child_sample.ri_proc_start_abstime || (known && child_sample.ri_proc_start_abstime!=[known[@"start_abstime"] unsignedLongLongValue])) return NO;
+            if (child_sample.ri_proc_exit_abstime) {
+                if (!usage(children[n],&confirmed) || confirmed.ri_proc_start_abstime!=child_sample.ri_proc_start_abstime || !confirmed.ri_proc_exit_abstime) return NO;
+                continue;
+            }
+            if (!add_process(children[n],@"descendant")) return NO;
+        }
     }
     return YES;
 }

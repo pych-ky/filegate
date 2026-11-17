@@ -51,12 +51,17 @@ func encoded(value any) ([]byte, error) {
 }
 
 func saveProgress(path string, value object) error {
+	return saveBounded(path, value, 65536)
+}
+
+// saveBounded replaces a record through a synced pending file; limit bounds both the new and the existing record.
+func saveBounded(path string, value object, limit int) error {
 	body, err := encoded(value)
-	if err != nil || len(body) > 65536 {
+	if err != nil || len(body) > limit {
 		return invalid
 	}
 	if _, err = os.Lstat(path); err == nil {
-		if _, _, err = hostvm.Read(path, 65536); err != nil {
+		if _, _, err = hostvm.Read(path, int64(limit)); err != nil {
 			return err
 		}
 	} else if !os.IsNotExist(err) {

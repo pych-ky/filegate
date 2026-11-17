@@ -171,15 +171,19 @@ func (v *inspector) layout(r io.ReaderAt, size int64) ([]entry, error) {
 		if nameSize > 1024 {
 			return nil, fail("LIMIT_EXCEEDED")
 		}
-		if extraSize != 0 || commentSize != 0 || u16(header[34:]) != 0 || e.compressed == 0xffffffff || e.uncompressed == 0xffffffff || e.local == 0xffffffff {
+		if commentSize != 0 || u16(header[34:]) != 0 || e.compressed == 0xffffffff || e.uncompressed == 0xffffffff || e.local == 0xffffffff {
 			return nil, fail("ARCHIVE_PROFILE_UNSUPPORTED")
 		}
 		name, err := readAt(r, cursor+46, nameSize, cdStart+cdSize)
 		if err != nil {
 			return nil, err
 		}
+		centralExtra, err := readAt(r, cursor+46+nameSize, extraSize, cdStart+cdSize)
+		if err != nil {
+			return nil, err
+		}
 		e.name = string(name)
-		cursor += 46 + nameSize
+		cursor += 46 + nameSize + extraSize
 		if e.flags&0x2041 != 0 {
 			return nil, fail("ENCRYPTED_ARCHIVE")
 		}
@@ -211,9 +215,7 @@ func (v *inspector) layout(r io.ReaderAt, size int64) ([]entry, error) {
 		if u32(local) != 0x04034b50 || u16(local[4:]) != e.needed || u16(local[6:]) != e.flags || u16(local[8:]) != e.method || int64(u16(local[26:])) != nameSize {
 			return nil, fail("ARCHIVE_CORRUPT")
 		}
-		if u16(local[28:]) != 0 {
-			return nil, fail("ARCHIVE_PROFILE_UNSUPPORTED")
-		}
+		localExtraSize := int64(u16(local[28:]))
 		localName, err := readAt(r, e.local+30, nameSize, cdStart)
 		if err != nil {
 			return nil, err
@@ -221,7 +223,14 @@ func (v *inspector) layout(r io.ReaderAt, size int64) ([]entry, error) {
 		if !bytes.Equal(name, localName) {
 			return nil, fail("ARCHIVE_CORRUPT")
 		}
-		e.data = e.local + 30 + nameSize
+		localExtra, err := readAt(r, e.local+30+nameSize, localExtraSize, cdStart)
+		if err != nil {
+			return nil, err
+		}
+		if err := unixMetadata(localExtra, centralExtra); err != nil {
+			return nil, err
+		}
+		e.data = e.local + 30 + nameSize + localExtraSize
 		if e.data > cdStart || int64(e.compressed) > cdStart-e.data {
 			return nil, fail("ARCHIVE_CORRUPT")
 		}
@@ -317,7 +326,8 @@ func (e *entry) kind() error {
 		if e.method == 0 && e.uncompressed == 0 && e.compressed != 0 {
 			return fail("ARCHIVE_CORRUPT")
 		}
-		if e.needed != 20 || e.method != 0 || e.flags&8 != 0 || e.crc != 0 || e.compressed != 0 || e.uncompressed != 0 {
+		// APPNOTE asks for 2.0, but Info-ZIP and macOS write 1.0 for empty stored directories; nothing else differs here.
+		if e.needed != 20 && e.needed != 10 || e.method != 0 || e.flags&8 != 0 || e.crc != 0 || e.compressed != 0 || e.uncompressed != 0 {
 			return fail("ARCHIVE_ENTRY_TYPE_CONFLICT")
 		}
 	}

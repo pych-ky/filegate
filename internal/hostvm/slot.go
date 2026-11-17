@@ -7,32 +7,49 @@ import (
 	"time"
 )
 
+func producerIntent(requestPath string) (Object, Object, error) {
+	intent, _, e := Read(filepath.Join(filepath.Dir(requestPath), "launch-intent.json"), RequestLimit)
+	if e != nil {
+		return nil, nil, e
+	}
+	req, b, e := Read(requestPath, RequestLimit)
+	if e != nil {
+		return nil, nil, e
+	}
+	if Str(intent, "request_sha256") != HashBytes(b) {
+		return nil, nil, Error("STARTUP_INTENT_MISMATCH")
+	}
+	if Str(req, "profile") == "filegate-official-update-v1" || Str(req, "profile") == "filegate-update-fixture-v1" {
+		if !Fields(intent, "schema", "update_id", "request_sha256", "lock_device", "lock_inode") || Int(intent, "schema") != 1 || intent["update_id"] != req["attempt_id"] {
+			return nil, nil, Error("UPDATE_PRODUCER_LOCK_INVALID")
+		}
+	} else {
+		if !Fields(intent, "schema", "job_id", "attempt_id", "input_sha256", "byte_size", "request_sha256", "lock_device", "lock_inode") || Int(intent, "schema") != 2 && Int(intent, "schema") != 1 || intent["job_id"] != req["job_id"] || intent["attempt_id"] != req["attempt_id"] || intent["input_sha256"] != req["expected_sha256"] || !Equal(intent["byte_size"], req["byte_size"]) {
+			return nil, nil, Error("STARTUP_INTENT_MISMATCH")
+		}
+	}
+	return intent, req, nil
+}
+func producerLockIdentity(fd int, requestPath string) (unix.Stat_t, error) {
+	var info, path unix.Stat_t
+	if unix.Fstat(fd, &info) != nil || unix.Lstat(filepath.Join(filepath.Dir(requestPath), "producer.lock"), &path) != nil || info.Mode&unix.S_IFMT != unix.S_IFREG || info.Uid != uint32(os.Getuid()) || info.Mode&07777 != 0600 || info.Size != 0 || info.Dev != path.Dev || info.Ino != path.Ino {
+		return info, Error("STARTUP_LOCK_CHANGED")
+	}
+	return info, nil
+}
 func ValidateProducerLock(fd int, requestPath string, cleanup bool) error {
 	if fd != 3 && !cleanup {
 		return Error("STARTUP_LOCK_REQUIRED")
 	}
-	intent, _, e := Read(filepath.Join(filepath.Dir(requestPath), "launch-intent.json"), RequestLimit)
+	intent, req, e := producerIntent(requestPath)
 	if e != nil {
 		return e
 	}
-	req, b, e := Read(requestPath, RequestLimit)
-	if e != nil {
-		return e
-	}
-	if Str(intent, "request_sha256") != HashBytes(b) {
+	if Str(req, "profile") != "filegate-official-update-v1" && Str(req, "profile") != "filegate-update-fixture-v1" && !cleanup && Int(intent, "schema") != 2 {
 		return Error("STARTUP_INTENT_MISMATCH")
 	}
-	if Str(req, "profile") == "filegate-official-update-v1" || Str(req, "profile") == "filegate-update-fixture-v1" {
-		if !Fields(intent, "schema", "update_id", "request_sha256", "lock_device", "lock_inode") || Int(intent, "schema") != 1 || intent["update_id"] != req["attempt_id"] {
-			return Error("UPDATE_PRODUCER_LOCK_INVALID")
-		}
-	} else {
-		if !Fields(intent, "schema", "job_id", "attempt_id", "input_sha256", "byte_size", "request_sha256", "lock_device", "lock_inode") || Int(intent, "schema") != 2 && (!cleanup || Int(intent, "schema") != 1) || intent["job_id"] != req["job_id"] || intent["attempt_id"] != req["attempt_id"] || intent["input_sha256"] != req["expected_sha256"] || !Equal(intent["byte_size"], req["byte_size"]) {
-			return Error("STARTUP_INTENT_MISMATCH")
-		}
-	}
-	var info, path unix.Stat_t
-	if unix.Fstat(fd, &info) != nil || unix.Lstat(filepath.Join(filepath.Dir(requestPath), "producer.lock"), &path) != nil || info.Mode&unix.S_IFMT != unix.S_IFREG || info.Uid != uint32(os.Getuid()) || info.Mode&07777 != 0600 || info.Size != 0 || !SameDirectory(info, Object{"device": intent["lock_device"], "inode": intent["lock_inode"]}) || info.Dev != path.Dev || info.Ino != path.Ino {
+	info, e := producerLockIdentity(fd, requestPath)
+	if e != nil || !SameDirectory(info, Object{"device": intent["lock_device"], "inode": intent["lock_inode"]}) {
 		return Error("STARTUP_LOCK_CHANGED")
 	}
 	if e = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB); e != nil {
@@ -41,15 +58,31 @@ func ValidateProducerLock(fd int, requestPath string, cleanup bool) error {
 	unix.CloseOnExec(fd)
 	return nil
 }
-func RecoveryLock(out string) (*os.File, error) {
+func (r *Runtime) previousBootResources(out string, req Object, profile Profile) (Object, error) {
+	resources, e := r.ReadResources(out, req)
+	if e != nil {
+		return nil, e
+	}
+	proof, e := r.PreviousBootProof(out, req, profile)
+	if e != nil {
+		return nil, e
+	}
+	if Str(resources, "run_directory") != Str(proof, "run_directory") || profile == UpdateProfile && Str(Map(Map(req, "attempt"), "started"), "boot") != Str(proof, "previous_boot_uuid") {
+		return nil, Error("NATIVE_PREVIOUS_BOOT_RESOURCE_INVALID")
+	}
+	return resources, nil
+}
+func (r *Runtime) RecoveryLock(out string, req Object, profile Profile) (*os.File, error) {
 	if missing(filepath.Join(filepath.Dir(out), "launch-intent.json")) {
 		return nil, nil
 	}
+	requestPath := filepath.Join(filepath.Dir(out), "request.json")
 	fd, e := unix.Open(filepath.Join(filepath.Dir(out), "producer.lock"), unix.O_RDWR|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if e != nil {
 		return nil, e
 	}
 	f := os.NewFile(uintptr(fd), "producer-lock")
+	fail := func(e error) (*os.File, error) { f.Close(); return nil, e }
 	until := time.Now().Add(34 * time.Second)
 	for {
 		e = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
@@ -57,14 +90,39 @@ func RecoveryLock(out string) (*os.File, error) {
 			break
 		}
 		if !time.Now().Before(until) {
-			f.Close()
-			return nil, Error("PRODUCER_STILL_ACTIVE")
+			return fail(Error("PRODUCER_STILL_ACTIVE"))
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if e = ValidateProducerLock(fd, filepath.Join(filepath.Dir(out), "request.json"), true); e != nil {
-		f.Close()
-		return nil, e
+	intent, actual, e := producerIntent(requestPath)
+	if e != nil {
+		return fail(e)
+	}
+	if !Equal(actual, req) {
+		return fail(Error("RECOVERY_REQUEST_MISMATCH"))
+	}
+	if e = ValidateProducerLock(fd, requestPath, true); e == nil {
+		return f, nil
+	}
+	if e.Error() != "STARTUP_LOCK_CHANGED" {
+		return fail(e)
+	}
+	info, identityErr := producerLockIdentity(fd, requestPath)
+	device, deviceOK := Uint(intent, "lock_device")
+	inode, inodeOK := Uint(intent, "lock_inode")
+	if identityErr != nil || !deviceOK || !inodeOK || device == 0 || inode == 0 || uint64(info.Dev) == device || info.Ino != inode {
+		return fail(e)
+	}
+	if _, e = r.previousBootResources(out, req, profile); e != nil {
+		return fail(e)
+	}
+	current, e := producerLockIdentity(fd, requestPath)
+	if e != nil || !SameIdentity(info, current) {
+		return fail(Error("STARTUP_LOCK_CHANGED"))
+	}
+	currentIntent, currentRequest, e := producerIntent(requestPath)
+	if e != nil || !Equal(currentIntent, intent) || !Equal(currentRequest, req) {
+		return fail(Error("STARTUP_INTENT_MISMATCH"))
 	}
 	return f, nil
 }
@@ -232,7 +290,7 @@ func CaptureSlot(out string, slot *Slot, req Object) error {
 	_, e = WriteOnce(filepath.Join(out, "slot-owner.json"), Merge(Binding(req), Object{"device": uint64(s.Dev), "inode": s.Ino, "sha256": HashBytes(b), "output_directory": out}))
 	return e
 }
-func (r *Runtime) ReleaseSlot(out string, req Object) error {
+func (r *Runtime) ReleaseSlot(out string, req Object, profile Profile) error {
 	owner, _, e := Read(filepath.Join(out, "slot-owner.json"), ControlLimit)
 	if e != nil {
 		return e
@@ -252,8 +310,45 @@ func (r *Runtime) ReleaseSlot(out string, req Object) error {
 		return e
 	}
 	s, e := Owned(path, unix.S_IFREG, 0600)
-	if e != nil || !SameDirectory(s, owner) || HashBytes(b) != Str(owner, "sha256") || Str(v, "output_directory") != out {
+	if e != nil || HashBytes(b) != Str(owner, "sha256") || Str(v, "output_directory") != out {
 		return Error("FOREIGN_VM_SLOT_OWNER")
+	}
+	if !SameDirectory(s, owner) {
+		device, deviceOK := Uint(owner, "device")
+		inode, inodeOK := Uint(owner, "inode")
+		if !deviceOK || !inodeOK || device == 0 || inode == 0 || uint64(s.Dev) == device || s.Ino != inode {
+			return Error("FOREIGN_VM_SLOT_OWNER")
+		}
+		fd, e := unix.Open(path, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+		if e != nil {
+			return e
+		}
+		file := os.NewFile(uintptr(fd), "previous-boot-slot")
+		defer file.Close()
+		var opened unix.Stat_t
+		if unix.Fstat(fd, &opened) != nil || !SameIdentity(s, opened) {
+			return Error("FOREIGN_VM_SLOT_OWNER")
+		}
+		proof, _, e := Read(filepath.Join(out, "stop-proof.json"), ControlLimit)
+		if e != nil || Str(proof, "kind") != "native_previous_boot" {
+			return Error("FOREIGN_VM_SLOT_OWNER")
+		}
+		if _, e = r.StopProof(out, req, nil, profile); e != nil {
+			return e
+		}
+		resources, e := r.previousBootResources(out, req, profile)
+		if e != nil {
+			return e
+		}
+		if !Equal(v, resources["slot_value"]) || Str(owner, "sha256") != Str(resources, "slot_sha256") {
+			return Error("FOREIGN_VM_SLOT_OWNER")
+		}
+		currentBytes, e := ReadBytes(path, ControlLimit)
+		current, ownedErr := Owned(path, unix.S_IFREG, 0600)
+		var held unix.Stat_t
+		if e != nil || ownedErr != nil || HashBytes(currentBytes) != HashBytes(b) || unix.Fstat(fd, &held) != nil || !SameIdentity(s, held) || !SameIdentity(held, current) {
+			return Error("FOREIGN_VM_SLOT_OWNER")
+		}
 	}
 	if e = os.Remove(path); e != nil {
 		return e

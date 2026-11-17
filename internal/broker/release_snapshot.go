@@ -2,14 +2,16 @@ package broker
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"filegate.local/filegate/internal/qemuruntime"
 	updatecontrol "filegate.local/filegate/internal/update"
 	"golang.org/x/sys/unix"
 )
@@ -42,6 +44,8 @@ type scanReleaseSnapshot struct {
 	Pins          map[string]scanReleasePin `json:"pins"`
 	ReportSHA256  string                    `json:"report_sha256"`
 	SummarySHA256 string                    `json:"summary_sha256"`
+	// The QEMU closure decoded from the pinned build receipt at capture; currentness re-verifies it and never captures a new one.
+	QEMURuntime *qemuruntime.Manifest `json:"qemu_runtime,omitempty"`
 }
 
 func releaseDigest(body []byte) string {
@@ -103,8 +107,17 @@ func releaseFileDigest(path string) (string, error) {
 }
 
 func (s scanReleaseSnapshot) current() bool {
-	if s.Schema != 2 || s.Policy != formatPolicy || !s.Captured.Valid() || !validDigest(s.BuildSHA256) || !validDigest(s.WorkerSHA256) || !validDigest(s.FormatsSHA256) || len(s.Pins) < 16 || len(s.Pins) > 1024 {
+	if s.Schema != 3 || s.Policy != formatPolicy || !s.Captured.Valid() || !validDigest(s.BuildSHA256) || !validDigest(s.WorkerSHA256) || !validDigest(s.FormatsSHA256) || len(s.Pins) < 16 || len(s.Pins) > 1024 {
 		return false
+	}
+	tools := s.QEMURuntime
+	if tools == nil || s.QEMU != tools.System().Path {
+		return false
+	}
+	for path, digest := range tools.Files() {
+		if pin, ok := s.Pins[path]; !ok || pin.SHA256 != digest {
+			return false
+		}
 	}
 	host, err := os.Executable()
 	if err == nil {
@@ -120,6 +133,210 @@ func (s scanReleaseSnapshot) current() bool {
 			return false
 		}
 	}
+	// File identities alone miss a moved /opt/homebrew/opt link or an OS change, so the original closure is re-derived in full.
+	_, err = qemuruntime.Verify(*tools)
+	return err == nil
+}
+
+// releaseView holds one list or detail request's metadata and results. A list keeps only its decoded snapshots for
+// the next request's byte-identical rows.
+type releaseView struct {
+	paths          map[string]releasePath
+	directories    map[string]bool            // directory -> reached from / without a symlink in this request
+	snapshots      map[string]displaySnapshot // attempt -> this request's stored row digest and strict decode
+	current        map[string]bool            // attempt -> this request's currentForDisplay result
+	qemu           map[string]bool            // manifest digest -> this request's displayQEMUCurrent result
+	host           string
+	hostErr        error
+	hostRead       bool
+	executable     string
+	executableErr  error
+	executableRead bool
+	definition     *requestDefinition
+}
+
+type releasePath struct {
+	stat unix.Stat_t
+	ok   bool
+}
+
+// displaySnapshot is a strict decode of one stored snapshot row and the SHA-256 of exactly those bytes.
+type displaySnapshot struct {
+	digest   string
+	snapshot scanReleaseSnapshot
+}
+
+type requestDefinition struct {
+	state updatecontrol.ScanDefinitionState
+	err   error
+}
+
+// Requests retain at most one page of attempts and a bounded set of paths; excess entries are checked without retention.
+const (
+	displayRequestAttempts = 100
+	displayRequestPaths    = 4096
+)
+
+func newReleaseView() *releaseView {
+	return &releaseView{paths: map[string]releasePath{}, directories: map[string]bool{}, snapshots: map[string]displaySnapshot{}, current: map[string]bool{}, qemu: map[string]bool{}}
+}
+
+// snapshot reads the stored row on every request. The latest list request's strict decode is reused only for the same attempt
+// and a byte-identical row; any other row is decoded again, and a failed decode never falls back to an earlier value.
+func (v *releaseView) snapshot(b *Broker, attempt string) (scanReleaseSnapshot, error) {
+	if d, ok := v.snapshots[attempt]; ok {
+		return d.snapshot, nil
+	}
+	rows, err := b.db.Query("SELECT data FROM scan_release_snapshots WHERE attempt_id=?", attempt)
+	if err != nil {
+		return scanReleaseSnapshot{}, failure("INCOMPLETE_REQUIRED_CHECKS", 409)
+	}
+	// The row's bytes are borrowed until Close, so they are hashed and strictly decoded before it.
+	var body sql.RawBytes
+	var d displaySnapshot
+	ok := rows.Next() && rows.Scan(&body) == nil
+	if ok {
+		d.digest = releaseDigest(body)
+		if previous, found := b.displaySnapshots[attempt]; found && previous.digest == d.digest {
+			d.snapshot = previous.snapshot
+		} else {
+			d.snapshot, ok = decodeScanRelease(body, attempt)
+		}
+	}
+	if rows.Close() != nil || !ok {
+		return d.snapshot, failure("INCOMPLETE_REQUIRED_CHECKS", 409)
+	}
+	if len(v.snapshots) < displayRequestAttempts {
+		v.snapshots[attempt] = d
+	}
+	return d.snapshot, nil
+}
+
+// readDefinition shares one admitted control commit and definition validation within a display request.
+func (v *releaseView) readDefinition(b *Broker, now updatecontrol.Clock, admit func(*sql.Tx) error) (updatecontrol.ScanDefinitionState, error) {
+	if v.definition == nil {
+		state, err := b.updates.store.ReadScanDefinitionAdmitted(now, admit)
+		v.definition = &requestDefinition{state: state, err: err}
+	}
+	return v.definition.state, v.definition.err
+}
+
+// path accepts an absolute clean path that is not a symlink and whose ancestors are directories reached without symlinks.
+// Ancestor observations are shared within this display request; the next request and strict actions check again.
+func (v *releaseView) path(path string) releasePath {
+	if p, ok := v.paths[path]; ok {
+		return p
+	}
+	var p releasePath
+	p.ok = filepath.IsAbs(path) && filepath.Clean(path) == path && unix.Lstat(path, &p.stat) == nil &&
+		p.stat.Mode&unix.S_IFMT != unix.S_IFLNK && v.directory(filepath.Dir(path))
+	if len(v.paths) < displayRequestPaths {
+		v.paths[path] = p
+	}
+	return p
+}
+
+func (v *releaseView) directory(path string) bool {
+	if path == "/" {
+		return true
+	}
+	if ok, seen := v.directories[path]; seen {
+		return ok
+	}
+	var stat unix.Stat_t
+	ok := v.directory(filepath.Dir(path)) && unix.Lstat(path, &stat) == nil && stat.Mode&unix.S_IFMT == unix.S_IFDIR
+	if len(v.directories) < displayRequestPaths {
+		v.directories[path] = ok
+	}
+	return ok
+}
+
+// executableHost resolves this broker's executable once per request for every stored row's host comparison.
+func (v *releaseView) executableHost() (string, error) {
+	if !v.executableRead {
+		v.executable, v.executableErr = os.Executable()
+		if v.executableErr == nil {
+			v.executable, v.executableErr = filepath.EvalSymlinks(v.executable)
+		}
+		v.executableRead = true
+	}
+	return v.executable, v.executableErr
+}
+
+func (v *releaseView) hostOS() (string, error) {
+	if !v.hostRead {
+		v.host, v.hostErr = qemuruntime.SystemVersion()
+		v.hostRead = true
+	}
+	return v.host, v.hostErr
+}
+
+// currentForDisplay is current() for list and detail only: pins use the request's metadata, and the QEMU closure is re-derived
+// unless its observation equals the last successful full Verify. Release, recovery, publication and acceptance keep current().
+func (s scanReleaseSnapshot) currentForDisplay(b *Broker, v *releaseView) bool {
+	if s.Schema != 3 || s.Policy != formatPolicy || !s.Captured.Valid() || !validDigest(s.BuildSHA256) || !validDigest(s.WorkerSHA256) || !validDigest(s.FormatsSHA256) || len(s.Pins) < 16 || len(s.Pins) > 1024 {
+		return false
+	}
+	tools := s.QEMURuntime
+	if tools == nil || s.QEMU != tools.System().Path {
+		return false
+	}
+	host, err := v.executableHost()
+	if err != nil || host != s.Host || !validDigest(s.Pins[host].SHA256) {
+		return false
+	}
+	for path, digest := range tools.Files() {
+		if pin, ok := s.Pins[path]; !ok || pin.SHA256 != digest {
+			return false
+		}
+	}
+	for path, expected := range s.Pins {
+		p := v.path(path)
+		if !p.ok || !validDigest(expected.SHA256) || releasePinIdentity(p.stat, expected.SHA256) != expected {
+			return false
+		}
+	}
+	return b.displayQEMUCurrent(*tools, v)
+}
+
+// qemuDisplayVerified is the one manifest last fully verified for display and the observation taken around that Verify.
+type qemuDisplayVerified struct {
+	manifest    string
+	observation string
+}
+
+// displayQEMUCurrent decides a manifest once per request. The caller holds b.mu.
+func (b *Broker) displayQEMUCurrent(m qemuruntime.Manifest, v *releaseView) bool {
+	key := qemuruntime.Digest(m)
+	if current, ok := v.qemu[key]; ok {
+		return current
+	}
+	current := b.observeQEMU(m, key, v)
+	v.qemu[key] = current
+	return current
+}
+
+// observeQEMU remembers only the last success, and only when the observation did not change across the full Verify; a change
+// seen there makes this request not current.
+func (b *Broker) observeQEMU(m qemuruntime.Manifest, key string, v *releaseView) bool {
+	host, err := v.hostOS()
+	if err != nil {
+		return false
+	}
+	before, err := qemuruntime.Observe(m, host)
+	if err != nil {
+		return false
+	}
+	if b.qemuDisplay.manifest == key && b.qemuDisplay.observation == before {
+		return true
+	}
+	if _, err = qemuruntime.Verify(m); err != nil {
+		return false
+	}
+	if after, err := qemuruntime.Observe(m, host); err != nil || after != before {
+		return false
+	}
+	b.qemuDisplay = qemuDisplayVerified{manifest: key, observation: before}
 	return true
 }
 
@@ -137,6 +354,7 @@ func (b *Broker) captureScanRelease(j Job, definition *updatecontrol.ScanDefinit
 		Artifacts   map[string]string `json:"artifacts"`
 		Sources     map[string]string `json:"product_sources_sha256"`
 		NativeProof string            `json:"native_proof_sha256"`
+		QEMURuntime json.RawMessage   `json:"qemu_runtime"`
 		Installed   map[string]struct {
 			SHA256 string `json:"sha256"`
 			Mode   string `json:"mode"`
@@ -151,7 +369,7 @@ func (b *Broker) captureScanRelease(j Job, definition *updatecontrol.ScanDefinit
 	if err != nil {
 		return nil, failure("UPDATE_CLOCK_UNCERTAIN", 503)
 	}
-	s := &scanReleaseSnapshot{Schema: 2, AttemptID: j.AttemptID, Object: *j.InputReceipt, Captured: clock, Policy: formatPolicy, BuildSHA256: releaseDigest(body), Pins: map[string]scanReleasePin{}}
+	s := &scanReleaseSnapshot{Schema: 3, AttemptID: j.AttemptID, Object: *j.InputReceipt, Captured: clock, Policy: formatPolicy, BuildSHA256: releaseDigest(body), Pins: map[string]scanReleasePin{}}
 	add := func(path, expected string, hash bool) error {
 		pin, err := releasePin(path, expected, hash)
 		if err == nil {
@@ -235,19 +453,24 @@ func (b *Broker) captureScanRelease(j Job, definition *updatecontrol.ScanDefinit
 			return nil, invalid
 		}
 	}
-	qemu, err := exec.LookPath("qemu-system-aarch64")
-	if err == nil {
-		qemu, err = filepath.EvalSymlinks(qemu)
-	}
+	tools, err := qemuruntime.Decode(build.QEMURuntime)
 	if err != nil {
 		return nil, invalid
 	}
-	s.QEMU = qemu
-	for _, path := range []string{qemu, vm.RunnerPath} {
-		digest, err := releaseFileDigest(path)
-		if err != nil || add(path, digest, true) != nil {
+	if _, err = qemuruntime.Verify(tools); err != nil {
+		return nil, invalid
+	}
+	for path, digest := range tools.Files() {
+		if add(path, digest, true) != nil {
 			return nil, invalid
 		}
+	}
+	qemu := tools.System().Path
+	s.QEMU = qemu
+	s.QEMURuntime = &tools
+	digest, err := releaseFileDigest(vm.RunnerPath)
+	if err != nil || add(vm.RunnerPath, digest, true) != nil {
+		return nil, invalid
 	}
 	workerPins := map[string]string{}
 	for _, path := range []string{"experiments/vm/.build/base.ext4", "experiments/vm/.build/initramfs.cpio.gz", "experiments/vm/.cache/boot/vmlinuz-virt", "experiments/vm/.build/filegate-worker", "experiments/vm/.build/filegate-bridge", "experiments/host/.build/integrated-watchdog"} {
@@ -259,8 +482,16 @@ func (b *Broker) captureScanRelease(j Job, definition *updatecontrol.ScanDefinit
 	}
 	workerPins["qemu"], workerPins["runner"], workerPins["native-proof"], workerPins["build-receipt"] = s.Pins[qemu].SHA256, b.runnerSHA, b.proofSHA, s.Pins[buildPath].SHA256
 	s.WorkerSHA256 = releaseDigest(encode(workerPins))
-	if len(encode(s)) > 1<<20 || !s.current() {
+	if !completedScanReleaseFits(*s) || !s.current() {
 		return nil, invalid
 	}
 	return s, nil
+}
+
+// completedScanReleaseFits checks the largest stored form: validateScanRelease adds both result digests and
+// finishScanLocked adds a valid finish clock of the captured boot, and decodeScanRelease must still accept it.
+func completedScanReleaseFits(s scanReleaseSnapshot) bool {
+	s.ReportSHA256, s.SummarySHA256 = strings.Repeat("0", 64), strings.Repeat("0", 64)
+	s.Finished = &updatecontrol.Clock{Boot: s.Captured.Boot, UTC: updatecontrol.MaxUTC, ContinuousNS: math.MaxUint64}
+	return len(encode(s)) <= 1<<20
 }

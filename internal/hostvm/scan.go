@@ -208,7 +208,7 @@ func (r *Runtime) cleanScan(out string, req Object) (Object, string, error) {
 	return evidence, Str(proof, "kind"), e
 }
 func (r *Runtime) recoverScan(out string, req, summary Object) error {
-	producer, e := RecoveryLock(out)
+	producer, e := r.RecoveryLock(out, req, ScanProfile)
 	if e != nil {
 		return e
 	}

@@ -2,7 +2,7 @@
 
 保存先・凍結規則・新Go候補の受入状態は[検証手順](../README.md)に従う。必須チェック、試験入力、期待結果を先に固定し、生成・検査・製品受入を別の証拠として扱う。
 
-`zip32-v1.json` はヘッダー・物理配置・CRC・Deflate終端・種別・階層・AV対象・上限の責務を定義する。extra fieldは許可せず、該当する有効ZIPもHOLDにする。名前比較はGo 1.27.3、golang.org/x/text v0.43.0、Unicode 17.0.0のNFCとdefault full case foldingに固定し、互換正規化を使わない。`txt-v1.json` はUTF-8・型申告・空ファイルのAV対象維持を定義する。
+`zip32-v1.json` はZIP32 Profile 2（`filegate-zip32-v2`）のヘッダー・物理配置・CRC・Deflate終端・種別・階層・AV対象・上限の責務を定義する。extra fieldは0x5455と0x7875だけを契約の長さ・flags・重複・local/central一致の条件で許可し、その他はHOLDにする。名前比較はGo 1.27.3、golang.org/x/text v0.43.0、Unicode 17.0.0のNFCとdefault full case foldingに固定し、互換正規化を使わない。`txt-v1.json` はUTF-8・型申告・空ファイルのAV対象維持を定義する。
 
 `image-v1.json` と `ooxml-v1.json` はPNG/JPEG・DOCX/XLSXの限定profileを定義する。構造が通常でも、AV未完了ならHOLDを維持する。HOLDの一致だけで個々の必須チェックを実証済みにしない。
 

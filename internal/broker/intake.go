@@ -92,7 +92,7 @@ func (b *Broker) Submit(ctx context.Context, request Request, body io.Reader) (R
 		b.mu.Unlock()
 		return Receipt{}, failure("QUOTA_EXCEEDED", 507)
 	}
-	if err = b.admission(tx); err != nil {
+	if err = b.admission(tx, MaxInputBytes); err != nil {
 		tx.Rollback()
 		b.mu.Unlock()
 		return Receipt{}, err

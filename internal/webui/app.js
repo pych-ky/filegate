@@ -288,7 +288,7 @@ async function refresh() {
   const version = listVersion;
   $("previous").disabled = true; $("next").disabled = true;
   try {
-    const parameters = new URLSearchParams({limit: "100", state: $("filter").value});
+    const parameters = new URLSearchParams({limit: "20", state: $("filter").value});
     if (cursors[pageIndex]) parameters.set("cursor", cursors[pageIndex]);
     const result = await api("/v1/jobs?" + parameters);
     if (version !== listVersion) return;
@@ -406,6 +406,7 @@ $("logout").addEventListener("click", async () => {
     bootstrapToken = "";
     const health = await api("/v1/health");
     releaseEnabled = health.release_enabled === true;
+    $("gate").hidden = health.customer_operation_enabled === true;
     const configured = await api("/v1/release-destinations");
     destinations = configured.destinations;
     authenticated = true; $("application").hidden = false; $("logout").hidden = false;

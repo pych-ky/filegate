@@ -83,6 +83,9 @@ func run(args []string) int {
 	if args[0] == "runtime-replace" {
 		return replaceRuntime(abs, args[1:])
 	}
+	if args[0] == "state-compact" {
+		return compactState(abs, args[1:])
+	}
 	client := newClient(abs)
 	defer client.CloseIdleConnections()
 	if args[0] == "mcp" {
@@ -310,8 +313,8 @@ func receive(c *http.Client, req *http.Request) (json.RawMessage, int, error) {
 		return nil, 0, err
 	}
 	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, (2<<20)+1))
-	if err != nil || len(body) > 2<<20 || !json.Valid(body) {
+	body, err := io.ReadAll(io.LimitReader(response.Body, broker.MaxClientResponseBytes+1))
+	if err != nil || len(body) > broker.MaxClientResponseBytes || !json.Valid(body) {
 		return nil, 0, errors.New("INVALID_RESPONSE")
 	}
 	return json.RawMessage(body), response.StatusCode, nil
@@ -341,6 +344,7 @@ func command(c *http.Client, data string, args []string) int {
 	expected := flags.String("expected-type", "", "")
 	hash := flags.String("expected-sha256", "", "")
 	destination := flags.String("destination", "default", "")
+	destinationPath := flags.String("destination-path", "", "")
 	timeout := flags.Int("timeout", 600, "")
 	requirePass := flags.Bool("require-pass", false, "")
 	urlStdin := flags.Bool("url-stdin", false, "")
@@ -354,6 +358,9 @@ func command(c *http.Client, data string, args []string) int {
 	}
 	seen := map[string]bool{}
 	flags.Visit(func(f *flag.Flag) { seen[f.Name] = true })
+	if seen["destination-path"] && args[0] != "destination-rebind" {
+		return failure("INVALID_ARGUMENT")
+	}
 	if (seen["cursor"] || seen["limit"] || seen["state"]) && args[0] != "list" {
 		return failure("INVALID_ARGUMENT")
 	}
@@ -461,6 +468,11 @@ func command(c *http.Client, data string, args []string) int {
 			return failure("INVALID_ARGUMENT")
 		}
 		return emit(call(ctx, c, "POST", "/v1/release-destinations/"+positionals[0]+"/disable", struct{}{}))
+	case "destination-rebind":
+		if len(positionals) != 1 || !validDestinationID(positionals[0]) || *destinationPath == "" || *hash == "" {
+			return failure("INVALID_ARGUMENT")
+		}
+		return emit(call(ctx, c, "POST", "/v1/release-destinations/"+positionals[0]+"/rebind", map[string]string{"path": *destinationPath, "expected_sha256": *hash}))
 	case "prune":
 		if len(positionals) != 0 {
 			return failure("INVALID_ARGUMENT")

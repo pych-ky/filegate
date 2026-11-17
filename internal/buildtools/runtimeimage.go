@@ -204,9 +204,33 @@ func trimCompilerImage(ctx context.Context, debugfs, image, staging, receiptPath
 }
 
 func imageInventory(ctx context.Context, debugfs, image string) ([]imageEntry, error) {
+	records, err := imageRecords(ctx, debugfs, image)
+	if err != nil {
+		return nil, err
+	}
+	entries := []imageEntry{}
+	for _, record := range records {
+		if record.Path != "/" {
+			entries = append(entries, imageEntry{Path: record.Path, Mode: record.Mode})
+		}
+	}
+	return entries, nil
+}
+
+// imageRecord is one directory entry (and the root itself as "/") with the inode, owner and size that debugfs ls -p reports; directories have no size.
+type imageRecord struct {
+	Path  string
+	Mode  uint32
+	UID   string
+	GID   string
+	Size  string
+	Inode string
+}
+
+func imageRecords(ctx context.Context, debugfs, image string) ([]imageRecord, error) {
 	queue := []string{"/"}
 	seen := map[string]bool{}
-	entries := []imageEntry{}
+	entries := []imageRecord{}
 	for len(queue) != 0 {
 		directory := queue[0]
 		queue = queue[1:]
@@ -237,6 +261,13 @@ func imageInventory(ctx context.Context, debugfs, image string) ([]imageEntry, e
 			}
 			if inode != 0 && fields[5] == "." {
 				self = true
+				if directory == "/" {
+					mode, e := strconv.ParseUint(fields[2], 8, 32)
+					if e != nil || mode&0170000 != 0040000 {
+						return nil, errors.New("invalid image root record")
+					}
+					entries = append(entries, imageRecord{Path: "/", Mode: uint32(mode), UID: fields[3], GID: fields[4], Size: fields[6], Inode: fields[1]})
+				}
 			}
 			if inode != 0 && fields[5] == ".." {
 				parent = true
@@ -252,7 +283,7 @@ func imageInventory(ctx context.Context, debugfs, image string) ([]imageEntry, e
 			if len(name) > 4096 || strings.Count(name, "/") > 128 || len(entries) >= 100000 {
 				return nil, errors.New("image inventory bounds exceeded")
 			}
-			entries = append(entries, imageEntry{Path: name, Mode: uint32(mode)})
+			entries = append(entries, imageRecord{Path: name, Mode: uint32(mode), UID: fields[3], GID: fields[4], Size: fields[6], Inode: fields[1]})
 			if mode&0170000 == 0040000 {
 				queue = append(queue, name)
 			}

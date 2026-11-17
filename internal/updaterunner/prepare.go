@@ -16,6 +16,7 @@ import (
 
 	"filegate.local/filegate/internal/av"
 	"filegate.local/filegate/internal/hostvm"
+	"filegate.local/filegate/internal/qemuruntime"
 	updatecontrol "filegate.local/filegate/internal/update"
 	"golang.org/x/sys/unix"
 )
@@ -143,6 +144,24 @@ func qemuArguments(qemu, run, requestPath, requestSHA string, m Manifest, cache 
 	return args
 }
 
+// pinnedTools selects QEMU from the workspace build receipt and requires the registration to pin every file of that closure with the same digest.
+func pinnedTools(m Manifest) (qemuruntime.Manifest, error) {
+	runtime, err := hostvm.New(m.Workspace)
+	if err != nil {
+		return qemuruntime.Manifest{}, err
+	}
+	tools, err := runtime.QEMURuntime()
+	if err != nil {
+		return tools, err
+	}
+	for path, digest := range tools.Files() {
+		if m.SHA256[path] != digest {
+			return tools, invalid("UPDATE_TOOL_PIN_MISSING")
+		}
+	}
+	return tools, nil
+}
+
 func checkedRun(path string) error {
 	if !canonical(path) || filepath.Dir(path) != "/private/tmp" || !regexp.MustCompile(`^filegate-vm-[0-9a-f]{32}$`).MatchString(filepath.Base(path)) {
 		return invalid("UPDATE_RUN_DIRECTORY_INVALID")
@@ -193,29 +212,22 @@ func Prepare(ctx context.Context, manifestPath, requestPath, run string) error {
 	if err != nil {
 		return err
 	}
-	qemu, err := exec.LookPath("qemu-system-aarch64")
+	tools, err := pinnedTools(m)
 	if err != nil {
 		return err
 	}
-	qemu, err = filepath.EvalSymlinks(qemu)
-	if err != nil {
-		return err
-	}
-	image, err := exec.LookPath("qemu-img")
-	if err != nil {
-		return err
-	}
-	image, err = filepath.EvalSymlinks(image)
-	if err != nil || !digestPattern.MatchString(m.SHA256[qemu]) || !digestPattern.MatchString(m.SHA256[image]) {
-		return invalid("UPDATE_TOOL_PIN_MISSING")
-	}
-	version, err := exec.CommandContext(ctx, qemu, "--version").Output()
+	qemu, image := tools.System().Path, tools.Image().Path
+	versionCommand := exec.CommandContext(ctx, qemu, "--version")
+	versionCommand.Env = qemuruntime.Environment()
+	version, err := versionCommand.Output()
 	parts := strings.Fields(strings.SplitN(string(version), "\n", 2)[0])
 	var fs unix.Statfs_t
 	if err != nil || len(parts) < 4 || parts[3] != "11.1.2" || unix.Statfs(run, &fs) != nil || uint64(fs.Bavail)*uint64(fs.Bsize) < 6<<30 {
 		return invalid("UPDATE_PREPARATION_REJECTED")
 	}
-	if err = exec.CommandContext(ctx, image, "create", "-f", "raw", "-o", "preallocation=full", filepath.Join(run, "work.raw"), "4294967296").Run(); err != nil {
+	create := exec.CommandContext(ctx, image, "create", "-f", "raw", "-o", "preallocation=full", filepath.Join(run, "work.raw"), "4294967296")
+	create.Env = qemuruntime.Environment()
+	if err = create.Run(); err != nil {
 		return err
 	}
 	if err = os.Chmod(filepath.Join(run, "work.raw"), 0600); err != nil {
@@ -298,6 +310,9 @@ func PreparedConfig(runtime *hostvm.Runtime, path, manifestPath, requestPath str
 	qemu := argv[0]
 	version := strings.Fields(hostvm.Str(p, "qemu_version"))
 	if filepath.Base(qemu) != "qemu-system-aarch64" || !canonical(qemu) || hostvm.Str(p, "qemu_sha256") != m.SHA256[qemu] || len(version) < 4 || version[3] != "11.1.2" {
+		return nil, invalid("UPDATE_QEMU_CHANGED")
+	}
+	if tools, err := pinnedTools(m); err != nil || qemu != tools.System().Path || hostvm.Str(p, "qemu_sha256") != tools.System().SHA256 {
 		return nil, invalid("UPDATE_QEMU_CHANGED")
 	}
 	raw, err := owned(filepath.Join(run, "work.raw"), unix.S_IFREG, 0600)

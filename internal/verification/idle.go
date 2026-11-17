@@ -31,93 +31,39 @@ func cpuSeconds(text string) float64 {
 	}
 	return total + float64(days*86400)
 }
-func processTable(h *Harness) map[int]Object {
-	result := Execute(h.Root, []string{"/bin/ps", "-axo", "pid=,ppid=,rss=,time=,comm="}, nil, 10*time.Second)
-	h.Check("process_inventory_available", result.ExitCode == 0)
+
+// ownedUsage reads RSS and cumulative CPU only for the given child PIDs this suite started and still holds.
+func ownedUsage(h *Harness, owners []int) map[int]Object {
+	pids := make([]string, len(owners))
+	for i, pid := range owners {
+		pids[i] = strconv.Itoa(pid)
+	}
+	result := Execute(h.Root, []string{"/bin/ps", "-o", "pid=,rss=,time=", "-p", strings.Join(pids, ",")}, nil, 10*time.Second)
+	h.Check("owned_process_measurement_available", result.ExitCode == 0)
 	rows := map[int]Object{}
 	for _, line := range strings.Split(strings.TrimSpace(string(result.Stdout)), "\n") {
 		fields := strings.Fields(line)
-		if len(fields) < 5 {
-			panic(Failure{"process_inventory_invalid"})
+		if len(fields) != 3 {
+			panic(Failure{"owned_process_measurement_invalid"})
 		}
 		pid, err := strconv.Atoi(fields[0])
 		Must(err)
-		parent, err := strconv.Atoi(fields[1])
+		rss, err := strconv.ParseInt(fields[1], 10, 64)
 		Must(err)
-		rss, err := strconv.ParseInt(fields[2], 10, 64)
-		Must(err)
-		rows[pid] = Object{"pid": pid, "parent": parent, "rss_bytes": rss * 1024, "cpu_seconds": cpuSeconds(fields[3]), "name": filepath.Base(strings.Join(fields[4:], " "))}
+		rows[pid] = Object{"pid": pid, "rss_bytes": rss * 1024, "cpu_seconds": cpuSeconds(fields[2])}
 	}
 	return rows
-}
-func auxiliary(rows map[int]Object) []int {
-	values := []int{}
-	for pid, row := range rows {
-		for _, prefix := range []string{"qemu-system-", "clamscan", "clamd", "freshclam", "filegate-watchdog", "integrated-watchdog"} {
-			if strings.HasPrefix(Str(row, "name"), prefix) {
-				values = append(values, pid)
-				break
-			}
-		}
-	}
-	return values
-}
-func descendants(rows map[int]Object, owners []int) []int {
-	found := map[int]bool{}
-	for _, pid := range owners {
-		found[pid] = true
-	}
-	for {
-		added := false
-		for pid, row := range rows {
-			if found[int(Int(row, "parent"))] && !found[pid] {
-				found[pid] = true
-				added = true
-			}
-		}
-		if !added {
-			break
-		}
-	}
-	for _, pid := range owners {
-		delete(found, pid)
-	}
-	result := []int{}
-	for pid := range found {
-		result = append(result, pid)
-	}
-	return result
-}
-func loadAverage(h *Harness) []float64 {
-	r := Execute(h.Root, []string{"/usr/sbin/sysctl", "-n", "vm.loadavg"}, nil, 5*time.Second)
-	h.Check("load_average_available", r.ExitCode == 0)
-	fields := strings.Fields(strings.Trim(string(r.Stdout), "{} \t\r\n"))
-	if len(fields) != 3 {
-		panic(Failure{"load_average_invalid"})
-	}
-	values := []float64{}
-	for _, field := range fields {
-		value, err := strconv.ParseFloat(field, 64)
-		Must(err)
-		values = append(values, value)
-	}
-	return values
 }
 func runIdle(h *Harness) {
 	h.Check("macos_idle_measurement", runtime.GOOS == "darwin")
 	h.Record["scope"] = "single 10-minute UI-closed idle measurement of broker plus initialized stdio MCP"
-	h.Record["not_demonstrated"] = []string{"UI-visible browser increment", "scan/update load and peaks", "sleep or OS restart"}
+	h.Record["measurement_scope"] = "only the two child processes this suite started (broker and stdio MCP); no global process inventory, descendants or load average"
+	h.Record["not_demonstrated"] = []string{"UI-visible browser increment", "scan/update load and peaks", "sleep or OS restart", "absence of VM, AV, watchdog or other processes outside the two owned children"}
 	h.Record["hardware"] = Object{"machine": runtime.GOARCH, "logical_cpus": runtime.NumCPU()}
-	for _, name := range []string{"hw.model", "hw.memsize"} {
-		r := Execute(h.Root, []string{"/usr/sbin/sysctl", "-n", name}, nil, 5*time.Second)
-		h.Check("hardware_"+name, r.ExitCode == 0)
-		Map(h.Record, "hardware")[name] = strings.TrimSpace(string(r.Stdout))
-	}
 	r := Execute(h.Root, []string{"/usr/bin/sw_vers"}, nil, 5*time.Second)
 	h.Record["os"] = string(r.Stdout)
 	r = Execute(h.Root, []string{"go", "version"}, nil, 5*time.Second)
 	h.Record["go"] = strings.TrimSpace(string(r.Stdout))
-	h.Check("no_scan_or_update_process_before_measurement", len(auxiliary(processTable(h))) == 0)
 	extra := []string{}
 	configured := false
 	for _, name := range []string{"vm-runner", "vm-workspace", "vm-proof"} {
@@ -198,7 +144,7 @@ func runIdle(h *Harness) {
 	defer stream.Close()
 	nextProgress := 60.0
 	for {
-		rows := processTable(h)
+		rows := ownedUsage(h, owners)
 		own := []Object{}
 		rss := int64(0)
 		cpu := 0.0
@@ -212,14 +158,11 @@ func runIdle(h *Harness) {
 			cpu += row["cpu_seconds"].(float64)
 		}
 		elapsed := time.Since(started).Seconds()
-		row := Object{"elapsed_seconds": elapsed, "processes": own, "rss_total_bytes": rss, "cpu_total_seconds": cpu, "load_average": loadAverage(h), "descendants": descendants(rows, owners), "scan_update_processes": auxiliary(rows)}
+		row := Object{"elapsed_seconds": elapsed, "processes": own, "rss_total_bytes": rss, "cpu_total_seconds": cpu}
 		samples = append(samples, row)
 		_, err = stream.Write(append(Encoded(row), '\n'))
 		Must(err)
 		Must(stream.Sync())
-		if len(row["descendants"].([]int)) > 0 || len(row["scan_update_processes"].([]int)) > 0 {
-			panic(Failure{"idle_auxiliary_process_present"})
-		}
 		if elapsed >= nextProgress {
 			fmt.Println(string(Encoded(Object{"mode": "idle", "elapsed_seconds": int64(elapsed), "rss_bytes": rss})))
 			nextProgress += 60

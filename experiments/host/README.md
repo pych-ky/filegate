@@ -20,13 +20,13 @@ qualifyは通常VMと同じ排他枠・所有intentを使うが、QEMUとrawは�
 
 失敗試行の回収は同じboot・source・binary・identityと元の出力先で `recover` を使う。回収成功は失敗したproofを合格に変えない。OS再起動などで前提が変わった場合に、保存intentを手動削除して進めない。
 
-Goの構築・qualify入口は `product-checks/go-migration-current/python-free-go-20261104/native-monitor-build-01/build.json` と同じ領域の `native-launchagent-proof-01/results.json` で実行済みである。後者は独立停止2.144543250秒、全子終了・guardian・label不存在を確認した合成死亡proofで、実QEMUの試験とは別である。既存proofの再利用にはOS・UID・native source/binaryの完全一致を必要とし、Go CLIができたことだけで別nativeへ継承しない。
+旧移行文書では、Goの構築・qualify入口の実行記録を `product-checks/go-migration-current/python-free-go-20261104/native-monitor-build-01/build.json` と同じ領域の `native-launchagent-proof-01/results.json` に保存したとされる。後者について、独立停止2.144543250秒、全子終了・guardian・label不存在を確認した合成死亡proofと記載されていたが、2026-11-12時点で両ファイルは記載先に見つからない。実QEMUの試験とは区別し、既存proofの再利用にはOS・UID・native source/binaryの完全一致を必要とする。Go CLIができたことだけで別nativeへ継承しない。
 
 実QEMUを伴う死亡回収は[VM手順](../vm/README.md)の `watchdog-death` で確認する。LaunchAgentの合成proofを起動条件に使い、入力を送らずworkspace relayを継続した状態で独立停止を検証する。
 
 ## 保存済み証拠の範囲
 
-現OSの[native資源20件](artifacts/20261028-os272-resource-01/results.json)は、合成メモリ値・pressure通知・計測失敗を注入した歴史的証拠である。新Go CLIに同じ20件を再生成する単独入口は提供していない。実OS圧迫、6 GiB割当、PID再利用の証拠にはしない。[600秒試験](../contracts/artifacts/20261028-os272-deadline-01/results.json)も合成VM/helperの期限・停止の証拠で、製品更新全工程やOS再起動・sleepの受入とは区別する。
+旧文書の[native資源20件](artifacts/20261028-os272-resource-01/results.json)と[600秒試験](../contracts/artifacts/20261028-os272-deadline-01/results.json)も、2026-11-12時点で記載先に見つからない。当時は前者を合成メモリ値・pressure通知・計測失敗、後者を合成VM/helperの期限・停止の記録としていた。新Go CLIに同じ20件を再生成する単独入口は提供していない。実OS圧迫、6 GiB割当、PID再利用、製品更新全工程やOS再起動・sleepの証拠にはしない。現在の受入範囲と未閉鎖項目は[実装状態](../../IMPLEMENTATION_STATUS.md)を参照する。
 
 終了確認が不完全なら `active-vm.json` と容量予約を保持して新規VMを拒否する。対象identity、プロセスとfdの終了、一時label不存在、raw回収を照合する。保存済み失敗を解決済みと記しただけで、現在の終了・回収確認を省略しない。
 

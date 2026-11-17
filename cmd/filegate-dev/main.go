@@ -43,7 +43,7 @@ func run(args []string) int {
 	}
 	args = flags.Args()
 	if len(args) == 0 {
-		return fail(fmt.Errorf("expected workspace, gate, build-scan, build-update, build-freshclam or verify-adapter"))
+		return fail(fmt.Errorf("expected workspace, gate, build-scan, build-host, build-guest, build-inspector, build-update, build-update-host, build-freshclam or verify-adapter"))
 	}
 	switch args[0] {
 	case "workspace":
@@ -62,8 +62,12 @@ func run(args []string) int {
 		return code
 	case "build-scan":
 		return buildScan(*repo, args[1:])
+	case "build-host", "build-guest", "build-inspector":
+		return buildHost(*repo, args[1:], args[0])
 	case "build-update":
 		return buildUpdate(*repo, args[1:])
+	case "build-update-host":
+		return buildUpdateHost(*repo, args[1:])
 	case "build-freshclam":
 		return buildFreshclam(*repo, args[1:])
 	case "verify-adapter":

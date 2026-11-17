@@ -317,6 +317,12 @@ func (b *Broker) executeScan(run *scanRun) {
 }
 
 func readRuntimeSummary(run *scanRun) (runtimeSummary, error) {
+	return readRuntimeSummaryKeeping(run, nil)
+}
+
+// readRuntimeSummaryKeeping sets a non-nil normal to the validated results.json bytes only when that file, not
+// recovery-results.json, was the summary read.
+func readRuntimeSummaryKeeping(run *scanRun, normal *[]byte) (runtimeSummary, error) {
 	var summary runtimeSummary
 	path := filepath.Join(run.directory, "output", "recovery-results.json")
 	_, recoveryErr := os.Lstat(path)
@@ -329,6 +335,7 @@ func readRuntimeSummary(run *scanRun) (runtimeSummary, error) {
 	if err != nil || strictJSON(body, &summary) != nil {
 		return summary, failure("VM_STOP_FAILED", 503)
 	}
+	summaryBody := body
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(body, &fields) != nil || (len(fields) != 13 && len(fields) != 14) {
 		return summary, failure("VM_STOP_FAILED", 503)
@@ -421,6 +428,9 @@ func readRuntimeSummary(run *scanRun) (runtimeSummary, error) {
 		if summary.Passed || summary.ReportAccepted || summary.ReportSHA256 != nil || (!os.IsNotExist(startedErr) && !previousBoot) {
 			return summary, failure("VM_STOP_FAILED", 503)
 		}
+	}
+	if normal != nil && os.IsNotExist(recoveryErr) {
+		*normal = summaryBody
 	}
 	return summary, nil
 }

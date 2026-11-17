@@ -235,7 +235,7 @@ func Run(args []string) (code int) {
 	}
 	h.Checks = nil
 	overlaySuite := options.Suite == "pressure" || options.Suite == "intake-capacity" || options.Suite == "intake-recovery"
-	if h.Binary == "" && options.Suite != "update-control" && options.Suite != "update-fixture" && options.Suite != "update-network-state" && options.Suite != "acquire" && !overlaySuite {
+	if h.Binary == "" && options.Suite != "update-control" && options.Suite != "update-fixture" && options.Suite != "update-network-state" && options.Suite != "acquire" && options.Suite != "release-boundary" && options.Suite != "release-replay" && options.Suite != "release-prepublish" && options.Suite != "release-unknown" && options.Suite != "release-unknown-abort" && !overlaySuite {
 		h.Binary = filepath.Join(options.Out, "filegate")
 		command := []string{"go", "build", "-trimpath", "-buildvcs=false", "-o", h.Binary, "./cmd/filegate"}
 		built := Execute(options.Root, command, nil, 3*time.Minute)

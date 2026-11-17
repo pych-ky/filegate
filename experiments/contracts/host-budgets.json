@@ -36,6 +36,8 @@
     "management_budget_excludes": ["originals", "scan/update workspace", "released files", "base images", "definition generations"],
     "base_and_definition_admission": "measured immutable artifact sizes and current/staged generations charged before run/update; no unbounded copy or retained candidate",
     "runtime_spool_excludes": "separately reserved detailed report file and SQLite/log pools",
+    "retained_run_evidence": "finished scan and update run control files, including per-run integrated watchdog events, stay charged to detailed_report_pool until retention removes them; update final reports and their pending copies are charged to update_report_pool",
+    "normalized_logs_scope": "normalized_logs_all_rotations covers host-wide rotating diagnostic logs; per-run integrated watchdog events are run control evidence bounded by integrated_watchdog_normalized_events_ram",
     "cleanup_failure": "keep outstanding reservation until writer exit, fd closure, owned-file deletion and required synchronization confirmed"
   },
   "admission": {

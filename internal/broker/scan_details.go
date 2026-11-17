@@ -51,9 +51,9 @@ func scanDetailsForReport(ctx context.Context, q queryer, run *scanRun, report s
 	if err != nil {
 		return nil, storageError()
 	}
-	var snapshot scanReleaseSnapshot
-	if len(body) > 256<<10 || strictJSONKeys(body, &snapshot, 4096) != nil || snapshot.Schema != 1 ||
-		snapshot.AttemptID != run.job.AttemptID || run.job.InputReceipt == nil || snapshot.Object != *run.job.InputReceipt || snapshot.Policy != report.PolicyDigest {
+	// Versions are historical metadata of this attempt, so they are shown for every readable schema without requiring currentness.
+	snapshot, ok := decodeScanRelease(body, run.job.AttemptID)
+	if !ok || run.job.InputReceipt == nil || snapshot.Object != *run.job.InputReceipt || snapshot.Policy != report.PolicyDigest {
 		return details, nil
 	}
 	definition, binding := run.definition, run.definition.Binding

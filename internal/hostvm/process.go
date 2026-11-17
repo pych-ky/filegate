@@ -20,14 +20,6 @@ var runPattern = regexp.MustCompile(`^/private/tmp/filegate-vm-[0-9a-f]{32}$`)
 var controlPattern = regexp.MustCompile(`^/private/tmp/fgw-[0-9a-f]{32}$`)
 var digestPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
-func BootUUID() (string, error) {
-	v, e := unix.Sysctl("kern.bootsessionuuid")
-	v = strings.TrimSpace(strings.ToLower(v))
-	if e != nil || !bootPattern.MatchString(v) {
-		return "", Error("CONTROL_BOOT_UNAVAILABLE")
-	}
-	return v, nil
-}
 func (r *Runtime) Clock() (uint64, error) {
 	ctx, c := context.WithTimeout(context.Background(), 5*time.Second)
 	defer c()

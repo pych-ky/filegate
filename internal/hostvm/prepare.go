@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"filegate.local/filegate/internal/qemuruntime"
 	"golang.org/x/sys/unix"
 )
 
@@ -121,6 +122,23 @@ func (r *Runtime) VerifyBuild() (Object, error) {
 	}
 	return receipt, nil
 }
+
+// QEMURuntime returns the fixed QEMU configuration frozen in the verified build receipt after re-verifying it against the current files.
+func (r *Runtime) QEMURuntime() (qemuruntime.Manifest, error) {
+	receipt, e := r.VerifyBuild()
+	if e != nil {
+		return qemuruntime.Manifest{}, e
+	}
+	return qemuRuntime(receipt)
+}
+func qemuRuntime(receipt Object) (qemuruntime.Manifest, error) {
+	m, e := qemuruntime.Decode(receipt["qemu_runtime"])
+	if e != nil {
+		return m, e
+	}
+	_, e = qemuruntime.Verify(m)
+	return m, e
+}
 func QEMUArgs(qemu, vm, run, definition string) []string {
 	args := []string{qemu, "-machine", "virt-11.1,gic-version=3", "-accel", "hvf", "-cpu", "host", "-smp", "2", "-m", "4096", "-nodefaults", "-no-user-config", "-nic", "none", "-display", "none", "-serial", "null", "-monitor", "none", "-no-reboot", "-kernel", filepath.Join(vm, ".cache/boot/vmlinuz-virt"), "-initrd", filepath.Join(vm, ".build/initramfs.cpio.gz"), "-append", "console=ttyAMA0 panic=-1 quiet", "-chardev", "socket,id=channel,path=" + filepath.Join(run, "channel.sock") + ",server=on,wait=off", "-device", "virtio-serial-pci,id=serial", "-device", "virtserialport,chardev=channel,name=org.filegate.probe"}
 	for _, d := range []struct {
@@ -160,17 +178,27 @@ func (r *Runtime) PrepareScan(ctx context.Context, run, request string) (Object,
 		return nil, e
 	}
 	if Int(req, "schema_version") == 2 {
-		return r.prepare(ctx, run, "")
+		return r.prepare(ctx, run, "", "")
 	}
-	return r.prepare(ctx, run, request)
+	return r.prepare(ctx, run, request, "")
 }
 func (r *Runtime) PrepareFixture(ctx context.Context, run, fixture string) (Object, error) {
 	if !fixtureAllowed(fixture) {
 		return nil, Error("UNKNOWN_NATIVE_FIXTURE")
 	}
-	return r.prepare(ctx, run, "")
+	return r.prepare(ctx, run, "", fixture)
 }
-func (r *Runtime) prepare(ctx context.Context, run, request string) (Object, error) {
+
+// blockIOFixture alone gets a private QMP socket for its fixed internal arming; product and other fixture argv stay exactly QEMUArgs.
+const blockIOFixture = "workspace-block-io"
+
+func fixtureQEMUArgs(fixture string, args []string, run string) []string {
+	if fixture != blockIOFixture {
+		return args
+	}
+	return append(append([]string{}, args...), "-qmp", "unix:"+filepath.Join(run, "qmp.sock")+",server=on,wait=off")
+}
+func (r *Runtime) prepare(ctx context.Context, run, request, fixture string) (Object, error) {
 	if e := checkedRun(run); e != nil {
 		return nil, e
 	}
@@ -184,29 +212,19 @@ func (r *Runtime) prepare(ctx context.Context, run, request string) (Object, err
 		}
 		definitionPath = Str(definition, "image_path")
 	}
-	if _, e = r.VerifyBuild(); e != nil {
+	receipt, e := r.VerifyBuild()
+	if e != nil {
 		return nil, e
 	}
 	var base, fixed unix.Stat_t
 	if unix.Lstat(filepath.Join(r.VM, ".build/base.ext4"), &base) != nil || base.Size != 1<<30 || unix.Lstat(filepath.Join(r.VM, ".build/definitions.ext4"), &fixed) != nil || fixed.Size != 16<<20 {
 		return nil, Error("READONLY_IMAGE_CAPACITY_INVALID")
 	}
-	qemu, e := exec.LookPath("qemu-system-aarch64")
+	tools, e := qemuRuntime(receipt)
 	if e != nil {
 		return nil, e
 	}
-	qemu, e = filepath.EvalSymlinks(qemu)
-	if e != nil {
-		return nil, e
-	}
-	image, e := exec.LookPath("qemu-img")
-	if e != nil {
-		return nil, e
-	}
-	image, e = filepath.EvalSymlinks(image)
-	if e != nil {
-		return nil, e
-	}
+	qemu, image := tools.System().Path, tools.Image().Path
 	version, e := boundedCommand(ctx, []string{qemu, "--version"}, 15*time.Second, 65536)
 	if e != nil {
 		return nil, e
@@ -239,10 +257,7 @@ func (r *Runtime) prepare(ctx context.Context, run, request string) (Object, err
 	if e != nil || raw.Size != RawBytes || raw.Blocks*512 < RawBytes {
 		return nil, Error("RAW_CAPACITY_INVALID")
 	}
-	qsha, e := HashFile(qemu)
-	if e != nil {
-		return nil, e
-	}
+	qsha := tools.System().SHA256
 	baseSHA, e := HashFile(filepath.Join(r.VM, ".build/base.ext4"))
 	if e != nil {
 		return nil, e
@@ -267,7 +282,7 @@ func (r *Runtime) prepare(ctx context.Context, run, request string) (Object, err
 			return nil, e
 		}
 	}
-	prepared := Object{"schema": 2, "block_io_fault": false, "run_directory": run, "argv": QEMUArgs(qemu, r.VM, run, definitionPath), "qemu_version": qline, "qemu_sha256": qsha, "raw": Object{"size": raw.Size, "allocated_bytes": raw.Blocks * 512, "full_preallocation_seconds": time.Since(started).Seconds()}, "images_before": Object{"base": baseSHA, "definitions": definitionSHA}, "boot_artifacts": Object{"kernel": kernel, "initramfs": initramfs}, "status": "prepared_not_started"}
+	prepared := Object{"schema": 2, "block_io_fault": fixture == blockIOFixture, "run_directory": run, "argv": fixtureQEMUArgs(fixture, QEMUArgs(qemu, r.VM, run, definitionPath), run), "qemu_version": qline, "qemu_sha256": qsha, "raw": Object{"size": raw.Size, "allocated_bytes": raw.Blocks * 512, "full_preallocation_seconds": time.Since(started).Seconds()}, "images_before": Object{"base": baseSHA, "definitions": definitionSHA}, "boot_artifacts": Object{"kernel": kernel, "initramfs": initramfs}, "status": "prepared_not_started"}
 	if request != "" {
 		prepared["schema"] = 3
 		prepared["definition"] = definition
@@ -313,7 +328,7 @@ func (r *Runtime) preparedConfig(path, proofPath, fixture, requestPath string) (
 			wantedSchema = 3
 		}
 	}
-	if !Fields(prepared, fields...) || Int(prepared, "schema") != wantedSchema || Str(prepared, "status") != "prepared_not_started" || prepared["block_io_fault"] != false {
+	if !Fields(prepared, fields...) || Int(prepared, "schema") != wantedSchema || Str(prepared, "status") != "prepared_not_started" || prepared["block_io_fault"] != (fixture == blockIOFixture) {
 		return nil, nil, Error("PREPARED_SCHEMA_INVALID")
 	}
 	run := Str(prepared, "run_directory")
@@ -333,7 +348,7 @@ func (r *Runtime) preparedConfig(path, proofPath, fixture, requestPath string) (
 		definitionPath = Str(definition, "image_path")
 	}
 	args, ok := Strings(prepared["argv"])
-	if !ok || len(args) == 0 || !Equal(args, QEMUArgs(args[0], r.VM, run, definitionPath)) {
+	if !ok || len(args) == 0 || !Equal(args, fixtureQEMUArgs(fixture, QEMUArgs(args[0], r.VM, run, definitionPath), run)) {
 		return nil, nil, Error("QEMU_ARGUMENTS_INVALID")
 	}
 	qemu := args[0]
@@ -356,6 +371,13 @@ func (r *Runtime) preparedConfig(path, proofPath, fixture, requestPath string) (
 	receipt, e := r.VerifyBuild()
 	if e != nil {
 		return nil, nil, e
+	}
+	tools, e := qemuRuntime(receipt)
+	if e != nil {
+		return nil, nil, e
+	}
+	if qemu != tools.System().Path || qsha != tools.System().SHA256 {
+		return nil, nil, Error("QEMU_RUNTIME_PIN_MISMATCH")
 	}
 	for name, path := range map[string]string{"base": filepath.Join(r.VM, ".build/base.ext4"), "definitions": definitionPath} {
 		want := Str(Map(prepared, "images_before"), name)
@@ -461,6 +483,7 @@ func boundedCommand(parent context.Context, args []string, timeout time.Duration
 	ctx, c := context.WithTimeout(parent, timeout)
 	defer c()
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Env = qemuruntime.Environment()
 	writer := &boundedWriter{limit: limit}
 	cmd.Stdout = writer
 	cmd.Stderr = writer

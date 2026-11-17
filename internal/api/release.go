@@ -67,11 +67,28 @@ func (h *handler) releaseDestinations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/release-destinations/"), "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] != "disable" {
+	if len(parts) != 2 || parts[0] == "" || (parts[1] != "disable" && parts[1] != "rebind") {
 		writeError(w, 404, "NOT_FOUND", nil)
 		return
 	}
-	if !method(w, r, http.MethodPost) || !emptyRequest(w, r) {
+	if !method(w, r, http.MethodPost) {
+		return
+	}
+	if parts[1] == "rebind" {
+		var request struct {
+			Path           string `json:"path"`
+			ExpectedSHA256 string `json:"expected_sha256"`
+		}
+		if !jsonRequest(w, r, &request) {
+			return
+		}
+		destination, err := h.broker.RebindReleaseDestination(r.Context(), parts[0], request.Path, request.ExpectedSHA256)
+		if !brokerError(w, err) {
+			writeJSON(w, 200, map[string]any{"schema_version": "4", "destination": destination})
+		}
+		return
+	}
+	if !emptyRequest(w, r) {
 		return
 	}
 	destination, err := h.broker.DisableReleaseDestination(r.Context(), parts[0])

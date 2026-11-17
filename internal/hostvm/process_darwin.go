@@ -32,9 +32,20 @@ static int filegate_group_count(int group,int *count) {
 import "C"
 import (
 	"os"
+	"strings"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
+func BootUUID() (string, error) {
+	v, e := unix.Sysctl("kern.bootsessionuuid")
+	v = strings.TrimSpace(strings.ToLower(v))
+	if e != nil || !bootPattern.MatchString(v) {
+		return "", Error("CONTROL_BOOT_UNAVAILABLE")
+	}
+	return v, nil
+}
 func NativeIdentity(pid int) (Object, error) {
 	var b, a [4]C.uint64_t
 	e := C.filegate_usage(C.int(pid), &b[0])

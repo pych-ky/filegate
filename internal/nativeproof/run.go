@@ -22,8 +22,23 @@ func Run(ctx context.Context, args []string) (int, error) {
 	repo := flags.String("repo", "", "canonical source repository")
 	out := flags.String("out", "", "external output directory")
 	build := flags.String("native-build", "", "Go native monitor build directory")
-	if flags.Parse(args[1:]) != nil || flags.NArg() != 0 || *repo == "" || *out == "" || (command != "build" && *build == "") {
+	fault := flags.String("fault", "", "native resource fixture hook value (resource only)")
+	proof := flags.String("adopted-proof", "", "adopted launchagent_death proof (reuse only)")
+	receipt := flags.String("baseline-receipt", "", "adopted scan build receipt (reuse only)")
+	resource := command == "resource" || command == "--locked-resource"
+	reuse := command == "reuse"
+	if flags.Parse(args[1:]) != nil || flags.NArg() != 0 || *repo == "" || *out == "" || (command != "build" && !reuse && *build == "") || reuse && *build != "" || resource != (*fault != "") || *fault != "" && resourceExpectations[*fault] == nil || reuse != (*proof != "" && *receipt != "") || !reuse && (*proof != "" || *receipt != "") {
 		return 2, failure("NATIVE_PROOF_ARGUMENTS_INVALID")
+	}
+	if reuse {
+		report, err := Reuse(*repo, *out, *receipt, *proof)
+		if report != nil {
+			emit(object{"passed": report["passed"], "reuse": filepath.Join(*out, "reuse.json")})
+		}
+		if err != nil {
+			return 1, err
+		}
+		return 0, nil
 	}
 	if command == "build" {
 		report, err := Build(ctx, *repo, *out)
@@ -35,13 +50,13 @@ func Run(ctx context.Context, args []string) (int, error) {
 		}
 		return 0, nil
 	}
-	if command == "--locked-qualify" || command == "--locked-recover" {
-		return locked(ctx, *repo, *build, *out, command == "--locked-recover")
+	if command == "--locked-qualify" || command == "--locked-recover" || command == "--locked-resource" {
+		return locked(ctx, *repo, *build, *out, command == "--locked-recover", *fault)
 	}
-	if command != "qualify" && command != "recover" {
+	if command != "qualify" && command != "recover" && command != "resource" {
 		return 2, failure("NATIVE_PROOF_COMMAND_INVALID")
 	}
-	return dispatch(ctx, *repo, *build, *out, command == "recover")
+	return dispatch(ctx, *repo, *build, *out, command == "recover", *fault)
 }
 
 func emit(value object) {
@@ -69,7 +84,7 @@ func slotBinding(r *hostvm.Runtime, out string) error {
 	return nil
 }
 
-func dispatch(ctx context.Context, repo, build, out string, recover bool) (int, error) {
+func dispatch(ctx context.Context, repo, build, out string, recover bool, fault string) (int, error) {
 	r, _, err := buildBinding(repo, build)
 	if err != nil {
 		return 2, err
@@ -121,7 +136,11 @@ func dispatch(ctx context.Context, repo, build, out string, recover bool) (int, 
 	if recover {
 		mode = "--locked-recover"
 	}
-	child := exec.Command(self, mode, "--repo", repo, "--native-build", build, "--out", out)
+	arguments := []string{mode, "--repo", repo, "--native-build", build, "--out", out}
+	if fault != "" {
+		arguments = []string{"--locked-resource", "--repo", repo, "--native-build", build, "--out", out, "--fault", fault}
+	}
+	child := exec.Command(self, arguments...)
 	child.ExtraFiles = []*os.File{slot}
 	child.Stdout, child.Stderr = os.Stdout, os.Stderr
 	if err = child.Start(); err != nil {
@@ -146,7 +165,7 @@ func dispatch(ctx context.Context, repo, build, out string, recover bool) (int, 
 	return 2, err
 }
 
-func locked(ctx context.Context, repo, build, out string, recover bool) (int, error) {
+func locked(ctx context.Context, repo, build, out string, recover bool, fault string) (int, error) {
 	r, receipt, err := buildBinding(repo, build)
 	if err != nil {
 		return 2, err
@@ -169,7 +188,7 @@ func locked(ctx context.Context, repo, build, out string, recover bool) (int, er
 		emit(object{"passed": false, "recovered": true, "result": filepath.Join(out, "recovery-results.json")})
 		return 0, nil
 	}
-	report, err := qualify(ctx, r, receipt, build, out)
+	report, err := qualify(ctx, r, receipt, build, out, fault)
 	if report != nil {
 		emit(object{"passed": report["passed"], "result": filepath.Join(out, "results.json")})
 	}

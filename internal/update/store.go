@@ -229,11 +229,23 @@ func (s *Store) apply(now Clock, operation func(*sql.Tx, *Control, Clock) error)
 
 func (s *Store) Read(now Clock) (Control, error) { return s.apply(now, nil) }
 
-func (s *Store) Begin(id string, now Clock) (Control, Attempt, error) {
-	return s.begin(id, now, nil)
+// ReadAdmitted lets an optional reader refuse the control write: admit runs in the same transaction after a successful
+// clock advance, and a refusal that is not an Error rolls the advance back instead of returning it uncommitted.
+func (s *Store) ReadAdmitted(now Clock, admit func(*sql.Tx) error) (Control, error) {
+	c, err := s.apply(now, func(tx *sql.Tx, _ *Control, _ Clock) error { return admit(tx) })
+	var domain Error
+	if err != nil && !errors.As(err, &domain) {
+		return Control{}, err
+	}
+	return c, err
 }
 
-func (s *Store) begin(id string, now Clock, reserve func(*sql.Tx, Control) error) (Control, Attempt, error) {
+func (s *Store) Begin(id string, now Clock) (Control, Attempt, error) {
+	return s.begin(id, now, nil, nil)
+}
+
+// admit runs in the begin transaction before any new-attempt write; an error that is not an Error rolls the transaction back.
+func (s *Store) begin(id string, now Clock, admit func(*sql.Tx) error, reserve func(*sql.Tx, Control) error) (Control, Attempt, error) {
 	var result Attempt
 	c, err := s.apply(now, func(tx *sql.Tx, c *Control, now Clock) error {
 		if !identifier.MatchString(id) {
@@ -269,6 +281,11 @@ func (s *Store) begin(id string, now Clock, reserve func(*sql.Tx, Control) error
 		}
 		if duplicate != 0 {
 			return StaleReport
+		}
+		if admit != nil {
+			if err := admit(tx); err != nil {
+				return err
+			}
 		}
 		result = Attempt{ID: id, BaseGeneration: c.Generation, State: "PREPARING", Started: now,
 			DeadlineContinuousNS: now.ContinuousNS + uint64(DeadlineSeconds)*1e9, ReservedBytes: WorkspaceReservation}

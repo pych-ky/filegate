@@ -352,7 +352,7 @@ func recoverRun(options options, r Request, requested object, requestSHA string,
 		if _, stopErr := runtime.StopProof(out, requested, nil, hostvm.UpdateProfile); stopErr != nil {
 			return stopErr
 		}
-		if err = runtime.ReleaseSlot(out, requested); err != nil {
+		if err = runtime.ReleaseSlot(out, requested, hostvm.UpdateProfile); err != nil {
 			return err
 		}
 		return complete(out, r, requestSHA, "", false, false)
@@ -588,7 +588,7 @@ func Run(args []string) error {
 		return err
 	}
 	if o.recover {
-		lock, err := hostvm.RecoveryLock(o.out)
+		lock, err := runtime.RecoveryLock(o.out, requested, hostvm.UpdateProfile)
 		if err != nil {
 			return err
 		}

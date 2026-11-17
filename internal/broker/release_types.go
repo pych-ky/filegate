@@ -44,8 +44,9 @@ type releaseIdentity struct {
 }
 
 type ReleaseDestination struct {
-	ID      string `json:"destination_id"`
-	Enabled bool   `json:"enabled"`
+	ID                 string `json:"destination_id"`
+	Enabled            bool   `json:"enabled"`
+	RegistrationSHA256 string `json:"registration_sha256,omitempty"`
 }
 
 type releaseDestinationRecord struct {
@@ -106,10 +107,26 @@ type releaseRun struct {
 	cancel    context.CancelFunc
 	stopCause context.CancelCauseFunc
 	done      chan struct{}
+	// written is this run's copy progress, guarded by b.mu; it is persisted once after a verified copy.
+	written int64
 }
 
 func (r releaseRecord) terminal() bool {
 	return r.Receipt.State == "COMMITTED" || r.Receipt.State == "ABORTED" || r.Receipt.State == "PUBLISHED_UNVERIFIED"
+}
+
+// 応答用の写しだけを作る。終端前のoutput_stateは、最終出力の検証が未確定ならUNKNOWNとし、公開有無はpublication_statusで示す。
+func releaseResponseReceipt(receipt ReleaseReceipt) ReleaseReceipt {
+	if (releaseRecord{Receipt: receipt}).terminal() {
+		return receipt
+	}
+	switch receipt.PublicationStatus {
+	case "NOT_ATTEMPTED", "NOT_PUBLISHED":
+		receipt.OutputState = "NOT_PUBLISHED"
+	case "UNKNOWN", "PUBLISHED":
+		receipt.OutputState = "UNKNOWN"
+	}
+	return receipt
 }
 
 func releaseFailure(code string, status int, receipt ReleaseReceipt) error {

@@ -478,6 +478,38 @@ func identityIf(exists bool, s unix.Stat_t) Object {
 	}
 	return DirectoryIdentity(s)
 }
+func StoppedGroupIdentities(native Object) ([]Object, error) {
+	events := objectsFromList(native["events"])
+	starts := []Object{}
+	for _, v := range events {
+		if Str(v, "event") == "WATCHDOG_STARTED" {
+			starts = append(starts, v)
+		}
+	}
+	if len(starts) != 1 {
+		return nil, Error("NATIVE_GROUP_IDENTITIES_INVALID")
+	}
+	watchdog, e := ProcessIdentity(starts[0], "watchdog")
+	if e != nil {
+		return nil, e
+	}
+	children, e := RecordedChildren(events, Int(watchdog, "pid"))
+	if e != nil {
+		return nil, e
+	}
+	expected := append([]Object{watchdog}, children...)
+	rows := List(native, "cleanup_after")
+	if Str(native, "kind") != "recovered_native_group" || Map(native, "terminal") != nil || native["process_group_empty"] != true || native["guardian_result_verified"] != false || len(rows) > 4 || len(rows) != len(expected) {
+		return nil, Error("NATIVE_GROUP_STOP_UNCONFIRMED")
+	}
+	for i, row := range rows {
+		m, ok := row.(Object)
+		if !ok || m["same_identity_live"] != false || !Equal(m["identity"], expected[i]) {
+			return nil, Error("NATIVE_GROUP_IDENTITIES_INVALID")
+		}
+	}
+	return expected, nil
+}
 func (r *Runtime) NativeChecks(native Object) (string, error) {
 	terminal := Map(native, "terminal")
 	kind := Str(native, "kind")
@@ -514,34 +546,11 @@ func (r *Runtime) NativeChecks(native Object) (string, error) {
 		}
 	}
 	if kind == "recovered_native_group" {
-		events := objectsFromList(native["events"])
-		starts := []Object{}
-		for _, v := range events {
-			if Str(v, "event") == "WATCHDOG_STARTED" {
-				starts = append(starts, v)
-			}
-		}
-		if len(starts) != 1 {
-			return "", Error("NATIVE_GROUP_IDENTITIES_INVALID")
-		}
-		watchdog, e := ProcessIdentity(starts[0], "watchdog")
+		identities, e := StoppedGroupIdentities(native)
 		if e != nil {
 			return "", e
 		}
-		children, e := RecordedChildren(events, Int(watchdog, "pid"))
-		if e != nil {
-			return "", e
-		}
-		expected := append([]Object{watchdog}, children...)
-		if terminal != nil || native["process_group_empty"] != true || native["guardian_result_verified"] != false || len(rows) > 4 || len(rows) != len(expected) {
-			return "", Error("NATIVE_GROUP_STOP_UNCONFIRMED")
-		}
-		for i, row := range rows {
-			if !Equal(row.(Object)["identity"], expected[i]) {
-				return "", Error("NATIVE_GROUP_IDENTITIES_INVALID")
-			}
-		}
-		empty, e := GroupEmpty(int(Int(watchdog, "pid")))
+		empty, e := GroupEmpty(int(Int(identities[0], "pid")))
 		if e != nil || !empty {
 			return "", Error("NATIVE_GROUP_STOP_UNCONFIRMED")
 		}

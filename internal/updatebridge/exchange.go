@@ -268,6 +268,10 @@ func (x *exchange) transfer(input io.Reader) error {
 			if !ok {
 				return errInvalid
 			}
+			// final.json re-encodes the report, which can outgrow the received line: U+2028 and U+2029 become 6-byte escapes.
+			if body, e := encoded(report); e != nil || len(body) > 1<<20 {
+				return errInvalid
+			}
 			var networkOut string
 			var networkRequest object
 			network, networkOut, networkRequest, err = networkLock(x.requestPath, x.requestSHA)

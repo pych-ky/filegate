@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+// MaxClientResponseBytes is the largest complete JSON response, including the encoder's trailing newline, that the
+// local CLI and MCP client accept; a job list page is cut to fit it.
+const MaxClientResponseBytes = 2 << 20
+
 type listCursor struct {
 	Version int    `json:"v"`
 	Created int64  `json:"created"`
@@ -78,6 +82,8 @@ func (b *Broker) ListStatePage(ctx context.Context, state, cursor string, limit 
 		return out, failure("SERVICE_STOPPING", 503)
 	}
 	last := listCursor{Version: 2, State: state}
+	var cursors []listCursor
+	view := newReleaseView()
 	batchLimit := 100
 	if state == "all" {
 		batchLimit = min(limit+1, 100)
@@ -96,7 +102,7 @@ func (b *Broker) ListStatePage(ctx context.Context, state, cursor string, limit 
 			if state != "stale" && !matchesListState(job, state) {
 				continue
 			}
-			if err = b.projectReleaseEligibility(ctx, &job); err != nil {
+			if err = b.projectReleaseEligibility(ctx, &job, view); err != nil {
 				return out, err
 			}
 			if !matchesListState(job, state) {
@@ -108,11 +114,14 @@ func (b *Broker) ListStatePage(ctx context.Context, state, cursor string, limit 
 			}
 			out.Jobs = append(out.Jobs, job)
 			last.Created, last.JobID = row.point.Created, row.point.JobID
+			cursors = append(cursors, last)
 		}
 		if out.NextCursor != "" {
 			break
 		}
 	}
+	// Only this request's decodes are kept (at most displayRequestAttempts), so history never accumulates.
+	b.displaySnapshots = view.snapshots
 	jobs := make([]*Job, len(out.Jobs))
 	for i := range out.Jobs {
 		jobs[i] = &out.Jobs[i]
@@ -120,10 +129,43 @@ func (b *Broker) ListStatePage(ctx context.Context, state, cursor string, limit 
 			return out, err
 		}
 	}
-	if err := b.projectNextAllowedAt(jobs...); err != nil {
+	if err := b.projectNextAllowedAt(view, jobs...); err != nil {
 		return out, err
 	}
-	return out, nil
+	return boundListPage(out, cursors)
+}
+
+// boundListPage keeps the longest prefix of the projected page whose encoded response, with the encoder's trailing
+// newline, fits MaxClientResponseBytes. A cut page continues after its last retained job, so the excluded jobs come on
+// the next page; a first job that cannot fit alone is refused rather than skipped, emptied or truncated.
+func boundListPage(page JobPage, cursors []listCursor) (JobPage, error) {
+	// The empty envelope with the actual cursor, the encoded jobs, their separating commas and the trailing newline.
+	size := func(cursor string, jobs, encoded int) int {
+		return len(encode(JobPage{SchemaVersion: page.SchemaVersion, Jobs: []Job{}, NextCursor: cursor})) + encoded + max(jobs-1, 0) + 1
+	}
+	sizes := make([]int, len(page.Jobs))
+	total := 0
+	for i := range page.Jobs {
+		sizes[i] = len(encode(page.Jobs[i]))
+		total += sizes[i]
+	}
+	if size(page.NextCursor, len(sizes), total) <= MaxClientResponseBytes {
+		return page, nil
+	}
+	kept, used, next := 0, 0, ""
+	for kept < len(sizes) {
+		cursor := base64.RawURLEncoding.EncodeToString(encode(cursors[kept]))
+		if size(cursor, kept+1, used+sizes[kept]) > MaxClientResponseBytes {
+			break
+		}
+		used += sizes[kept]
+		kept, next = kept+1, cursor
+	}
+	if kept == 0 {
+		return JobPage{SchemaVersion: page.SchemaVersion, Jobs: []Job{}}, failure("LIMIT_EXCEEDED", 409)
+	}
+	page.Jobs, page.NextCursor = page.Jobs[:kept], next
+	return page, nil
 }
 
 type listRow struct {
