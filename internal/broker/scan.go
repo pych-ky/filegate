@@ -231,6 +231,11 @@ func (b *Broker) prepareScan(id string) (*scanRun, error) {
 		return nil, storageError()
 	}
 	defer tx.Rollback()
+	// The new attempt reuses the stored original, so it charges no new original bytes; its raw, report and control space is checked above,
+	// and the shared run-evidence pool again in this transaction.
+	if err = b.scanStartAdmission(tx); err != nil {
+		return nil, err
+	}
 	if _, err = tx.Exec("INSERT INTO runtime_runs(attempt_id,job_id,state,directory,raw_reserved,report_reserved,control_reserved) VALUES(?,?,'RESERVED',?,?,?,?)", j.AttemptID, j.JobID, directory, rawReservation, reportLimit, controlReservation); err != nil {
 		return nil, storageError()
 	}

@@ -135,33 +135,76 @@ func imageFields(body []byte, names ...string) (map[string]json.RawMessage, erro
 
 // ScanDefinition returns a host-approved generation without rereading the large image.
 func (s *Store) ScanDefinition(now Clock) (ScanDefinition, error) {
-	return s.scanDefinition(now, true)
+	return s.scanDefinition(now, true, nil)
 }
 
 // CurrentScanDefinition validates the adopted version; scan-start freshness is checked separately.
 func (s *Store) CurrentScanDefinition(now Clock) (ScanDefinition, error) {
-	return s.scanDefinition(now, false)
+	return s.scanDefinition(now, false, nil)
 }
 
-func (s *Store) scanDefinition(now Clock, requireFresh bool) (ScanDefinition, error) {
+// CurrentScanDefinitionAdmitted runs a non-nil admit first in the same transaction, as ReadAdmitted does.
+func (s *Store) CurrentScanDefinitionAdmitted(now Clock, admit func(*sql.Tx) error) (ScanDefinition, error) {
+	return s.scanDefinition(now, false, admit)
+}
+
+// ScanDefinitionState separates a committed control read from the adopted definition's validation result.
+type ScanDefinitionState struct {
+	Control         Control
+	Definition      ScanDefinition
+	DefinitionError error
+}
+
+// ReadScanDefinitionAdmitted commits the clock advance even when definition validation fails; control/admission/commit
+// errors stay separate so an optional display never uses an uncommitted Control. Strict scan readers keep scanDefinition.
+func (s *Store) ReadScanDefinitionAdmitted(now Clock, admit func(*sql.Tx) error) (ScanDefinitionState, error) {
+	var result ScanDefinitionState
+	control, err := s.apply(now, func(tx *sql.Tx, control *Control, now Clock) error {
+		if admit != nil {
+			if err := admit(tx); err != nil {
+				return err
+			}
+		}
+		result.Definition, result.DefinitionError = currentScanDefinition(tx, *control, now, false)
+		return nil
+	})
+	if err == nil {
+		result.Control = control
+	}
+	return result, err
+}
+
+func (s *Store) scanDefinition(now Clock, requireFresh bool, admit func(*sql.Tx) error) (ScanDefinition, error) {
 	var result ScanDefinition
 	_, err := s.apply(now, func(tx *sql.Tx, control *Control, now Clock) error {
-		if control.Binding.FixtureOnly || control.Definition == nil || (requireFresh && (!Fresh(*control, now) || control.ActiveUpdateID != "")) {
-			return Error("DATABASE_STALE")
+		if admit != nil {
+			if err := admit(tx); err != nil {
+				return err
+			}
 		}
-		if err := readScanDefinition(tx, control.Definition, &result); err != nil {
-			return err
-		}
-		if !validImageProfile(ImageProfile{ProfileID: result.Profile.ProfileID, ScannerManifestSHA256: result.Binding.ScannerManifestSHA256,
-			BinarySHA256: result.Binding.BinarySHA256, ConfigurationSHA256: result.Binding.ConfigurationSHA256, ObservationSHA256: result.Binding.ObservationSHA256}) {
-			return Error("REVALIDATION_REQUIRED")
-		}
-		return nil
+		var err error
+		result, err = currentScanDefinition(tx, *control, now, requireFresh)
+		return err
 	})
 	return result, err
 }
 
-func readScanDefinition(tx *sql.Tx, definition *DefinitionSet, result *ScanDefinition) error {
+func currentScanDefinition(tx *sql.Tx, control Control, now Clock, requireFresh bool) (ScanDefinition, error) {
+	var result ScanDefinition
+	if control.Binding.FixtureOnly || control.Definition == nil || (requireFresh && (!Fresh(control, now) || control.ActiveUpdateID != "")) {
+		return result, Error("DATABASE_STALE")
+	}
+	if err := readScanDefinition(tx, control.Definition, &result, ""); err != nil {
+		return result, err
+	}
+	if !validImageProfile(ImageProfile{ProfileID: result.Profile.ProfileID, ScannerManifestSHA256: result.Binding.ScannerManifestSHA256,
+		BinarySHA256: result.Binding.BinarySHA256, ConfigurationSHA256: result.Binding.ConfigurationSHA256, ObservationSHA256: result.Binding.ObservationSHA256}) {
+		return result, Error("REVALIDATION_REQUIRED")
+	}
+	return result, nil
+}
+
+func readScanDefinition(tx *sql.Tx, definition *DefinitionSet, result *ScanDefinition, cacheBoot string) error {
 	var body []byte
 	if err := tx.QueryRow("SELECT data FROM update_adoptions WHERE update_id=?", definition.UpdateID).Scan(&body); err != nil {
 		return err
@@ -190,7 +233,8 @@ func readScanDefinition(tx *sql.Tx, definition *DefinitionSet, result *ScanDefin
 	expected := ImageProfile{ProfileID: image.Profile.ProfileID, ScannerManifestSHA256: image.Binding.ScannerManifestSHA256, BinarySHA256: image.Binding.BinarySHA256,
 		ConfigurationSHA256: image.Binding.ConfigurationSHA256, ObservationSHA256: image.Binding.ObservationSHA256}
 	target := filepath.Join(filepath.Dir(filepath.Dir(directory)), "definitions", definition.UpdateID)
-	if _, err := os.Lstat(target); errors.Is(err, os.ErrNotExist) {
+	// A previous boot's image is not reused as an update cache; scan reads remain strict.
+	if _, err := os.Lstat(target); errors.Is(err, os.ErrNotExist) || cacheBoot != "" && definition.Confirmed.Boot != cacheBoot {
 		if validateDefinitionImage(image, adopted.Manifest, expected) != nil ||
 			sha256Text(encoded(image)) != definition.ImageManifestSHA256 || adopted.Directory.Schema != 1 || adopted.Directory.Inode == 0 {
 			return Invalid

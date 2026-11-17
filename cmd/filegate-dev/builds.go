@@ -26,6 +26,25 @@ func buildScan(repo string, args []string) int {
 	return emit(result)
 }
 
+// buildHost also serves build-guest, which may additionally replace the fixed replaceable guest binaries in the copied image, and
+// build-inspector, which may also replace the ZIP inspector binaries and the reviewed ZIP contract.
+func buildHost(repo string, args []string, name string) int {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	baseline := flags.String("baseline", "", "existing scan build workspace")
+	nativeProof := flags.String("native-proof", "", "native monitor proof of the baseline build")
+	nativeBinary := flags.String("native-binary", "", "new qualified native binary")
+	replacementProof := flags.String("replacement-native-proof", "", "native monitor proof of the new binary")
+	verification := flags.String("verification", "", "shared verification root")
+	if flags.Parse(args) != nil || flags.NArg() != 0 || *baseline == "" || *nativeProof == "" || (*nativeBinary == "") != (*replacementProof == "") {
+		return 2
+	}
+	result, err := buildtools.BuildHost(context.Background(), buildtools.BuildOptions{Repository: repo, Verification: *verification, Baseline: *baseline, NativeProof: *nativeProof, NativeBinary: *nativeBinary, ReplacementNativeProof: *replacementProof, GuestFixtures: name == "build-guest", Inspector: name == "build-inspector"})
+	if err != nil {
+		return fail(err)
+	}
+	return emit(result)
+}
+
 func buildUpdate(repo string, args []string) int {
 	flags := flag.NewFlagSet("build-update", flag.ContinueOnError)
 	baseline := flags.String("baseline-build", "", "derived Go scan build receipt")
@@ -40,6 +59,23 @@ func buildUpdate(repo string, args []string) int {
 		return 2
 	}
 	result, err := buildtools.BuildUpdate(context.Background(), buildtools.BuildOptions{Repository: repo, Verification: *verification, BaselineBuild: *baseline, AdapterBuild: *adapter, NativeProof: *proof, Out: *out, FreshclamBinary: *freshclam, FreshclamBuild: *freshclamBuild, ReuseRegistration: *reuse})
+	if err != nil {
+		return fail(err)
+	}
+	return emit(result)
+}
+
+func buildUpdateHost(repo string, args []string) int {
+	flags := flag.NewFlagSet("build-update-host", flag.ContinueOnError)
+	parent := flags.String("parent-registration", "", "registered normal update runtime")
+	nativeBinary := flags.String("native-binary", "", "new qualified native binary")
+	replacementProof := flags.String("replacement-native-proof", "", "native monitor proof of the new binary")
+	out := flags.String("out", "", "new external output")
+	verification := flags.String("verification", "", "shared verification root")
+	if flags.Parse(args) != nil || flags.NArg() != 0 || *parent == "" || *out == "" || (*nativeBinary == "") != (*replacementProof == "") {
+		return 2
+	}
+	result, err := buildtools.BuildUpdateHost(context.Background(), buildtools.BuildOptions{Repository: repo, Verification: *verification, ParentRegistration: *parent, NativeBinary: *nativeBinary, ReplacementNativeProof: *replacementProof, Out: *out})
 	if err != nil {
 		return fail(err)
 	}

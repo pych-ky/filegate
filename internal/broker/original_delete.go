@@ -57,7 +57,7 @@ func (b *Broker) DeleteOriginal(ctx context.Context, jobID string) (Job, error) 
 	if err != nil {
 		return Job{}, err
 	}
-	if err = b.beginOriginalDeletion(ctx, j); err != nil {
+	if err = b.beginOriginalDeletion(ctx, j, false); err != nil {
 		return Job{}, err
 	}
 	// The durable intent survives a UI disconnect, and settles only after unlink+sync.
@@ -198,7 +198,8 @@ func captureOriginal(dir *os.File, receipt InputReceipt, missing bool) (original
 	return originalStat(before), nil
 }
 
-func (b *Broker) beginOriginalDeletion(ctx context.Context, j Job) error {
+// expiredPrune marks a fully expired, unreferenced prune, which may fall back to quiescentCopyAdmit.
+func (b *Broker) beginOriginalDeletion(ctx context.Context, j Job, expiredPrune bool) error {
 	var owner string
 	err := b.db.QueryRowContext(ctx, "SELECT job_id FROM object_deletions WHERE object_id=?", j.InputReceipt.ObjectID).Scan(&owner)
 	if err == nil {
@@ -232,6 +233,19 @@ func (b *Broker) beginOriginalDeletion(ctx context.Context, j Job) error {
 		return storageError()
 	}
 	defer tx.Rollback()
+	// A new intent is optional work, and its later completion rewrites the whole job row.
+	completed := *j.InputReceipt
+	completed.ContentAvailable = false
+	final := j
+	final.InputReceipt = &completed
+	pages := rewritePages(len(encode(final)))
+	err = b.maintenanceUnitAdmit(tx, pages)
+	if expiredPrune && errors.Is(err, errMaintenanceTransient) {
+		err = b.quiescentCopyAdmit(tx, pages)
+	}
+	if err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, "INSERT INTO object_deletions(object_id,job_id) VALUES(?,?)", record.ObjectID, record.JobID); err != nil {
 		return storageError()
 	}

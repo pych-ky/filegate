@@ -339,7 +339,7 @@ BLOCKの保持は、ゲストの報告が真実であることの新たな保証
 
 ZIPの受け入れ判定は、VM内の**StrictZipValidator**が担当する。Goのarchive/zipは対応する圧縮データを読むために再利用できるが、読み取り成功だけでは厳格な構造検証にならない。確認したGo実装には、local/centralの名前を比較しない処理、descriptorなしで記録CRCが0の場合に照合を省く処理、descriptorのサイズを使わない処理がある。[S16](https://go.dev/src/archive/zip/reader.go)
 
-初期対応をFileGate ZIP32 Profile 1として固定する。Store/Deflate、単一ディスク、非暗号化、ASCIIまたは曖昧さのないUTF-8名に限定する。ZIP64、SFX/prefix、末尾付加データ、追加record、file/archive comment、未対応extra fieldはHOLDとする。data descriptorは署名付き32-bit形式だけを許可し、bit 3がある場合のlocal headerのCRC・サイズはすべて0のplaceholderに限定する。extra fieldは既知の時刻情報等について長さ・重複・解釈を定義して試験したものだけを許可し、名前を上書きする未知の拡張は無視しない。基準となる構造仕様はPKWARE APPNOTEとする。[S17](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT)
+現在のZIP対応はFileGate ZIP32 Profile 2（契約のprofile_idはfilegate-zip32-v2）とする。最初のProfile 1（filegate-zip32-v1）からの変更は、下記の2つのextra fieldと空ディレクトリの必要versionの例外だけである。Store/Deflate、単一ディスク、非暗号化、ASCIIまたは曖昧さのないUTF-8名に限定する。ZIP64、SFX/prefix、末尾付加データ、追加record、file/archive comment、未対応extra fieldはHOLDとする。data descriptorは署名付き32-bit形式だけを許可し、bit 3がある場合のlocal headerのCRC・サイズはすべて0のplaceholderに限定する。extra fieldは既知の時刻情報等について長さ・重複・解釈を定義して試験したものだけを許可し、名前を上書きする未知の拡張は無視しない。許可するextra fieldは、Info-ZIPの拡張タイムスタンプ（0x5455）とUID/GID（0x7875）だけで、契約に定めた長さ・flags・各ヘッダー1回・local/centralの一致の条件で許可し、その値は展開に使わない。基準となる構造仕様はPKWARE APPNOTEとする。[S17](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT)
 
 | 検査 | 実装責務 |
 | --- | --- |
@@ -358,13 +358,15 @@ ZIPの受け入れ判定は、VM内の**StrictZipValidator**が担当する。Go
 
 GoのModeはCreatorVersionに応じてExternalAttrsを解釈し、名前末尾の/も参照する。一方、File.Openは末尾/かつ申告展開サイズ0なら圧縮データを読まずEOFを返す経路がある。IsDir、末尾/、OpenのEOFのどれかだけで空ディレクトリと判断しない。[S27](https://go.dev/src/archive/zip/struct.go) [S16](https://go.dev/src/archive/zip/reader.go)
 
-初期ZIP32 Profile 1でVERIFIED_EMPTY_DIRECTORYとするには、次を**すべて**必要とする。
+ZIP32 Profile 2でVERIFIED_EMPTY_DIRECTORYとするには、次を**すべて**必要とする。
 
 - local/centralのraw nameが一致し、安全な相対パスで末尾が/である。
 
 - 対応するcreatorの型属性がdirectoryを表し、名前・他の既知型属性と矛盾しない。
 
 - methodはStore、data descriptorなし、local/centralの圧縮サイズ・展開サイズ・CRC32がすべて0である。
+
+- 展開に必要なversionは20とする。APPNOTEのdirectory 2.0に対する互換性の例外として、この節の条件をすべて満たす場合に限り10も許可する。
 
 - 独立した物理配置検査でもpayload区間が0バイトであり、隠れた領域や未参照データがない。
 
@@ -413,7 +415,7 @@ StrictZipValidatorは外側のZIP、ネストZIP、対応するOOXMLのZIP構造
 
 | 形式 | 自動合格に必要な検査 |
 | --- | --- |
-| ZIP | ZIP32 Profile 1の全体構造、全entryの対応確認、展開上限、原本と展開対象のAV検査 |
+| ZIP | ZIP32 Profile 2の全体構造、全entryの対応確認、展開上限、原本と展開対象のAV検査 |
 | TXT | 許可するテキスト形式の確認とAV検査。取り出し時もtxtとして扱う |
 | JPEGとPNG | 対応アダプターによる構造確認とAV検査 |
 | PDF | 対応アダプターとAV検査。暗号化、既知のスクリプト、自動アクション、添付などの保留条件を確認 |
@@ -716,6 +718,8 @@ get_releaseのabort_outcomeはPENDING/ABORTED/TOO_LATEを使用し、中止未�
 
 publication_statusはNOT_ATTEMPTED（試行なし）、NOT_PUBLISHED（全試行の未公開が証明済み）、UNKNOWN（未解決試行あり）、PUBLISHED（公開成功の証拠あり）を表す。resources_finalizedは終端精算のDBコミット後だけtrueとする。PUBLISHED_UNVERIFIEDも墓標と元キー再送の終端に含め、同じreceiptへ固定する。
 
+output_stateは終端で確定する最終出力の状態で、COMMITTEDはMATCH、PUBLISHED_UNVERIFIEDはMISSING/MODIFIED、ABORTEDはNOT_PUBLISHEDを返す。終端前はpublication_statusがNOT_ATTEMPTED/NOT_PUBLISHEDならNOT_PUBLISHED、UNKNOWN/PUBLISHEDなら最終出力の検証が未確定を表すUNKNOWNを応答と履歴で返し、公開有無はpublication_status、現在のファイル状態はcurrent_output_stateで別に示す。
+
 一覧はcursor方式で最大100件ずつ返す。初回ファイル受付は予約と取得枠を取る前にbodyをスプールせず、取得中も250 MiBの上限を適用する。再送は追加の取得枠・予約を取らず、枠不足でも既存状態を照会できる。枠不足は429、容量不足はQUOTA_EXCEEDEDを持つ非成功応答とする。任意のホストパスをHTTP APIから読ませず、未検査原本の取得エンドポイントも作らない。削除はローカルUIだけに用意し、処理中・復旧未完了の参照は第11章に従い保護する。
 
 # 10 保存モデルと整合性
@@ -819,6 +823,8 @@ abort_releaseはPREPARED、READY、REVALIDATION_REQUIRED、RECOVERY_REQUIREDか�
 出力先の廃止は、まず新規取り出しを禁止する論理的な無効化として行い、未完了releaseへ中止要求を設定する。未解決releaseが参照するディレクトリidentity、stagingの所在、照合情報は削除しない。公開未試行または全試行の未公開が証明済みなら、出力先が無効でも中止を進められる。ただしstagingの不存在・回収確認は必要である。
 
 媒体の取り外し、出力先の交換、設定消失を、未公開・回収済みの証拠にしない。照合や回収ができなければRECOVERY_REQUIREDと中止要求を保持し、再接続・照合後に同じ処理を続ける。公開有無が不明なものを、枠を空ける目的で強制ABORTEDにする操作は設けない。
+
+出力先のdevice番号が変わった場合は、同じID/pathを明示的に再登録する保守操作を使える。現在の登録のSHA-256を指定し、全release書込みの停止、未完了release・未精算予約・未解決INTENTがすべて0であることを同じ排他区間とDBトランザクションで確認する。root/stagingをno-followで開き、APFS・所有者・権限・同一device、旧登録とのinode/birthの一致、stagingが空であること、名前から再度開いたidentityの一致を確かめる。同期後、新規取り出し用の登録だけを更新し、既存release・公開履歴・receipt・キーの結び付けは変更しない。無効化した出力先は再有効化しない。この操作は現在のフォルダーへの再承認であり、旧volumeと同一だと自動的に認定するものではない。
 
 ### 公開済みで最終確認できない場合の終端
 
@@ -984,8 +990,8 @@ ClamAV、OSイメージ、QEMU、形式解析器の更新も対象に含める�
 | 全未完了ジョブ | 取得待ち・取得中・検査待ち・検査中・確定中を合わせて20件 |
 | 同時取得・取込み | URL、アップロード、ローカルコピーを合わせて1件 |
 | 検査作業領域 | 1試行につき固定raw 4 GiB。第4章の容量強制と、原本5 GiB枠とは別の物理予約を併用 |
-| ホスト詳細レポート | 最大32 MiB/試行。管理側の別予算へ予約・計上 |
-| ホスト診断出力 | 未加工console/stderrはファイルへ保存しない。各受信バッファ1 MiB以下。正規化ログは全体32 MiBでローテーション |
+| ホスト詳細レポート | 最大32 MiB/試行。管理側の別予算へ予約・計上。保持中の検査・更新の停止と回収の証拠（実行ごとの制御ファイルと監視イベント。更新の報告を除く）も同じ予算へ計上し、保持期限まで消さない |
+| ホスト診断出力 | 未加工console/stderrはファイルへ保存しない。各受信バッファ1 MiB以下。ホスト全体の正規化ログは全体32 MiBでローテーション。実行ごとの監視イベント（1実行4 MiB以下）は停止と回収の証拠として実行の制御に含め、ローテーションで消さない |
 | 更新用作業領域 | 初期上限6 GiB。検査VMと同時実行せず、専用に予約 |
 | 未完了release | 最大20件。COMMITTED/ABORTED/PUBLISHED_UNVERIFIEDの終端精算で枠を解放 |
 | 取り出しstaging | 同時書込み1件、最大250 MiBを出力先ボリュームで予約。未解決の残留物も計上 |

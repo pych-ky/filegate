@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,9 +19,40 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 	"golang.org/x/sys/unix"
 )
+
+// stateDriver configures every physical connection to the management database and reads the settings back before use.
+// database/sql discards a connection whose transaction context is cancelled (the driver has no session reset), so settings
+// applied once through the pool would be lost on the replacement connection.
+const stateDriver = "sqlite3-filegate-state"
+
+const statePragmas = "PRAGMA fullfsync=ON; PRAGMA checkpoint_fullfsync=ON; PRAGMA max_page_count=32768; PRAGMA journal_size_limit=67108864; PRAGMA wal_autocheckpoint=256;"
+
+func init() { sql.Register(stateDriver, &sqlite3.SQLiteDriver{ConnectHook: configureStateConnection}) }
+
+func configureStateConnection(c *sqlite3.SQLiteConn) error {
+	if _, err := c.Exec(statePragmas, nil); err != nil {
+		return err
+	}
+	for pragma, want := range map[string]driver.Value{"journal_mode": "wal", "synchronous": int64(2), "foreign_keys": int64(1), "busy_timeout": int64(5000), "fullfsync": int64(1), "checkpoint_fullfsync": int64(1), "max_page_count": int64(32768), "journal_size_limit": int64(67108864), "wal_autocheckpoint": int64(256), "page_size": int64(4096)} {
+		rows, err := c.Query("PRAGMA "+pragma, nil)
+		if err != nil {
+			return err
+		}
+		got := make([]driver.Value, 1)
+		err = rows.Next(got)
+		rows.Close()
+		if text, ok := got[0].([]byte); ok {
+			got[0] = string(text)
+		}
+		if err != nil || got[0] != want {
+			return errors.New("STATE_CONNECTION_SETTINGS_INVALID")
+		}
+	}
+	return nil
+}
 
 type ingestRun struct {
 	written   int64
@@ -50,6 +82,9 @@ type Broker struct {
 	updates         *updateCoordinator
 	pressure        *hostPressure
 	retentionDone   chan struct{}
+	qemuDisplay     qemuDisplayVerified // guarded by mu; list and detail only
+	// Guarded by mu; the latest list request's decoded snapshots only (at most a 100-job page), replaced by the next list request.
+	displaySnapshots map[string]displaySnapshot
 }
 
 const schema = `
@@ -144,7 +179,7 @@ func Open(c Config) (*Broker, error) {
 	q.Set("_busy_timeout", "5000")
 	q.Set("_txlock", "immediate")
 	u.RawQuery = q.Encode()
-	db, err := sql.Open("sqlite3", u.String())
+	db, err := sql.Open(stateDriver, u.String())
 	if err != nil {
 		return nil, storageError()
 	}
@@ -155,7 +190,7 @@ func Open(c Config) (*Broker, error) {
 			db.Close()
 		}
 	}()
-	if _, err = db.Exec("PRAGMA fullfsync=ON; PRAGMA checkpoint_fullfsync=ON; PRAGMA max_page_count=32768; PRAGMA journal_size_limit=67108864; PRAGMA wal_autocheckpoint=256;" + schema + releaseSchema); err != nil {
+	if _, err = db.Exec(schema + releaseSchema); err != nil {
 		return nil, storageError()
 	}
 	for pragma, want := range map[string]int{"synchronous": 2, "foreign_keys": 1, "fullfsync": 1, "max_page_count": 32768, "page_size": 4096} {
@@ -354,11 +389,12 @@ func (b *Broker) Get(ctx context.Context, id string) (Job, error) {
 		return Job{}, failure("SERVICE_STOPPING", 503)
 	}
 	j, err := readJob(ctx, b.db, id)
+	view := newReleaseView()
 	if err == nil {
-		err = b.projectReleaseEligibility(ctx, &j)
+		err = b.projectReleaseEligibility(ctx, &j, view)
 	}
 	if err == nil {
-		err = b.projectNextAllowedAt(&j)
+		err = b.projectNextAllowedAt(view, &j)
 	}
 	if err == nil {
 		err = b.projectDisplayName(ctx, &j)
@@ -370,13 +406,32 @@ func (b *Broker) List(ctx context.Context) ([]Job, error) {
 	return page.Jobs, err
 }
 
-func (b *Broker) admission(q queryer) error {
+// admission checks pressure, recovery, the management database files and free space; newOriginalBytes is the
+// original storage the caller is about to write (an intake reserves MaxInputBytes, a rescan reuses its stored original).
+func (b *Broker) admission(q queryer, newOriginalBytes int64) error {
 	if err := b.pressureGateLocked(); err != nil {
 		return err
 	}
 	if b.recoveryBlocked {
 		return failure("RECOVERY_REQUIRED", 503)
 	}
+	if err := b.databaseBudget(q); err != nil {
+		return err
+	}
+	pending, err := b.pendingRuntime(q)
+	if err != nil {
+		return err
+	}
+	inputs, err := b.pendingInputs(q)
+	if err != nil {
+		return err
+	}
+	return checkFree(b.config.DataDir, newOriginalBytes+inputs+pending)
+}
+
+// databaseBudget checks the management database files and allocated pages against the start budget. It reads only q and
+// file sizes, so an optional control write can be refused inside its own transaction.
+func (b *Broker) databaseBudget(q queryer) error {
 	for name, max := range map[string]int64{"state.sqlite": 112 << 20, "state.sqlite-wal": 28 << 20, "state.sqlite-shm": 1 << 20} {
 		info, err := os.Lstat(filepath.Join(b.config.DataDir, name))
 		if errors.Is(err, os.ErrNotExist) {
@@ -389,15 +444,19 @@ func (b *Broker) admission(q queryer) error {
 			return failure("QUOTA_EXCEEDED", 507)
 		}
 	}
-	pending, err := b.pendingRuntime(q)
-	if err != nil {
-		return err
+	// A separate reader can keep committed pages in the WAL while the main file stays short, so the allocated pages seen by
+	// this transaction (page_count without reusable freelist pages) must also leave the 16 MiB terminal reserve.
+	var pages, free, size, limit int64
+	ctx := context.Background()
+	if q.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pages) != nil || q.QueryRowContext(ctx, "PRAGMA freelist_count").Scan(&free) != nil ||
+		q.QueryRowContext(ctx, "PRAGMA page_size").Scan(&size) != nil || q.QueryRowContext(ctx, "PRAGMA max_page_count").Scan(&limit) != nil ||
+		size != 4096 || limit != 32768 || pages < 1 || free < 0 || free > pages {
+		return storageError()
 	}
-	inputs, err := b.pendingInputs(q)
-	if err != nil {
-		return err
+	if (pages-free)*size > limit*size-(16<<20) {
+		return failure("QUOTA_EXCEEDED", 507)
 	}
-	return checkFree(b.config.DataDir, MaxInputBytes+inputs+pending)
+	return nil
 }
 
 func (b *Broker) validateRequest(r Request) (Request, string, error) {

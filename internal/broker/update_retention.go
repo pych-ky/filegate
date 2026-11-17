@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	updatecontrol "filegate.local/filegate/internal/update"
@@ -61,7 +62,15 @@ func (b *Broker) updateRetention(ctx context.Context, cutoff time.Time, resumeOn
 			return result, storageError()
 		}
 	}
-	result, err := b.updates.store.Prune(b.config.DataDir, cutoff.Unix(), protected, resumeOnly)
+	// New retention work is admitted in each writing transaction; owed startup completion (resumeOnly) is not.
+	var admit func(*sql.Tx) error
+	if !resumeOnly {
+		admit = func(tx *sql.Tx) error { return b.maintenanceUnitAdmit(tx, 0) }
+	}
+	result, err := b.updates.store.Prune(b.config.DataDir, cutoff.Unix(), protected, resumeOnly, admit)
+	if maintenanceDeferred(err) {
+		return result, err
+	}
 	if err != nil {
 		return result, storageError()
 	}

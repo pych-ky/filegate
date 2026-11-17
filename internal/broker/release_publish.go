@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -59,6 +60,10 @@ func (b *Broker) prepareReleaseLocked(ctx context.Context, j Job, destination, k
 		return releaseRecord{}, storageError()
 	}
 	defer tx.Rollback()
+	// A release reuses the stored original, so it charges no new original bytes; the destination staging is charged above.
+	if err = b.admission(tx, 0); err != nil {
+		return releaseRecord{}, err
+	}
 	if _, err = tx.ExecContext(ctx, "INSERT INTO releases(id,key_hash,fingerprint,job_id,state,data) VALUES(?,?,?,?,?,?)", id, keyHash, fingerprint, j.JobID, r.Receipt.State, encode(r)); err != nil {
 		return releaseRecord{}, storageError()
 	}
@@ -78,6 +83,15 @@ func (b *Broker) prepareReleaseLocked(ctx context.Context, j Job, destination, k
 }
 
 func (b *Broker) initializeReleaseDestination(ctx context.Context, d *releaseDestinationRecord) error {
+	// The admission check shares the transaction of the destination update and runs before any directory is created.
+	tx, err := b.db.BeginTx(ctx, nil)
+	if err != nil {
+		return storageError()
+	}
+	defer tx.Rollback()
+	if err = b.admission(tx, 0); err != nil {
+		return err
+	}
 	root, err := openReleaseDirectory(d.Path)
 	if err != nil {
 		parent, parentErr := openReleaseDirectory(filepath.Dir(d.Path))
@@ -119,7 +133,10 @@ func (b *Broker) initializeReleaseDestination(ctx context.Context, d *releaseDes
 		return failure("RECOVERY_REQUIRED", 409)
 	}
 	d.Identity, d.Staging = &identity, &stageIdentity
-	if _, err = b.db.ExecContext(ctx, "UPDATE release_destinations SET data=? WHERE id=?", encode(d), d.ID); err != nil {
+	if _, err = tx.ExecContext(ctx, "UPDATE release_destinations SET data=? WHERE id=?", encode(d), d.ID); err != nil {
+		return storageError()
+	}
+	if tx.Commit() != nil {
 		return storageError()
 	}
 	return nil
@@ -133,9 +150,9 @@ func (b *Broker) releaseCapacityLocked(root *os.File, additional int64) error {
 	if err != nil {
 		return err
 	}
-	var remaining int64
-	if b.db.QueryRow("SELECT coalesce(sum(max(reserved-written,0)),0) FROM release_reservations WHERE device=?", identity.Device).Scan(&remaining) != nil {
-		return storageError()
+	remaining, err := b.pendingReleaseOn(b.db, identity.Device)
+	if err != nil {
+		return err
 	}
 	var store unix.Stat_t
 	if unix.Stat(b.config.DataDir, &store) != nil {
@@ -167,15 +184,34 @@ func (b *Broker) pendingReleaseStorage(q queryer) (int64, error) {
 	if unix.Stat(b.config.DataDir, &st) != nil {
 		return 0, storageError()
 	}
+	return b.pendingReleaseOn(q, releaseStatIdentity(st).Device)
+}
+
+// pendingReleaseOn is the unwritten release reservation on device. The active copy keeps its progress in RAM, so only the
+// part beyond what its own reservation row records is credited, never more than that row's remainder.
+func (b *Broker) pendingReleaseOn(q queryer, device string) (int64, error) {
+	ctx := context.Background()
 	var pending int64
-	if q.QueryRowContext(context.Background(), "SELECT coalesce(sum(max(reserved-written,0)),0) FROM release_reservations WHERE device=?", releaseStatIdentity(st).Device).Scan(&pending) != nil {
+	if q.QueryRowContext(ctx, "SELECT coalesce(sum(max(reserved-written,0)),0) FROM release_reservations WHERE device=?", device).Scan(&pending) != nil {
 		return 0, storageError()
 	}
-	return pending, nil
+	run := b.releaseActive
+	if run == nil {
+		return pending, nil
+	}
+	var reserved, written int64
+	err := q.QueryRowContext(ctx, "SELECT reserved,written FROM release_reservations WHERE release_id=? AND device=?", run.id, device).Scan(&reserved, &written)
+	if errors.Is(err, sql.ErrNoRows) {
+		return pending, nil
+	}
+	if err != nil {
+		return 0, storageError()
+	}
+	return pending - min(max(run.written-written, 0), max(reserved-written, 0)), nil
 }
 
 func (b *Broker) startReleaseLocked(r releaseRecord) {
-	if b.releaseActive != nil || b.closed || !Stage0Passed || r.terminal() || r.Receipt.AbortRequested || b.pressureGateLocked() != nil {
+	if b.releaseActive != nil || b.closed || b.recoveryBlocked || !Stage0Passed || r.terminal() || r.Receipt.AbortRequested || b.pressureGateLocked() != nil {
 		return
 	}
 	ctx, stopCause := context.WithCancelCause(context.Background())
@@ -198,7 +234,7 @@ func (b *Broker) resumeReleaseLocked(ctx context.Context, r *releaseRecord) erro
 	if j.InputReceipt == nil || j.InputReceipt.ObjectID != r.ObjectID || j.InputReceipt.SHA256 != r.SHA256 || j.InputReceipt.ByteSize != r.ByteSize {
 		return failure("INPUT_HASH_MISMATCH", 409)
 	}
-	binding, err := b.currentReleaseAuthorization(ctx, j)
+	binding, err := b.currentReleaseAuthorization(ctx, j, func(tx *sql.Tx) error { return b.databaseBudget(tx) })
 	if err != nil {
 		return err
 	}
@@ -225,38 +261,8 @@ func (b *Broker) resumeReleaseLocked(ctx context.Context, r *releaseRecord) erro
 	if state == "MATCH" && (syncFile(temp) != nil || staging.Sync() != nil) {
 		return failure("OUTPUT_IO_ERROR", 503)
 	}
-	if state != "MATCH" {
-		if err = cleanupReleaseTemp(staging, *r); err != nil {
-			return err
-		}
-		r.Generation++
-		r.TempName = releaseTempName(r.Receipt.ReleaseID, r.Generation)
-		r.TempIdentity = nil
-	}
-	r.Authorization = binding
-	r.Receipt.State = "PREPARED"
-	if state == "MATCH" {
-		r.Receipt.State = "READY"
-	}
-	r.Receipt.ReasonCodes = []string{}
-	tx, err := b.db.BeginTx(ctx, nil)
-	if err != nil {
-		return storageError()
-	}
-	defer tx.Rollback()
-	if err = writeRelease(ctx, tx, *r); err != nil {
+	if err = b.commitResumeLocked(ctx, r, binding, staging, state); err != nil {
 		return err
-	}
-	if _, err = tx.ExecContext(ctx, "INSERT INTO release_authorizations(release_id,sequence,attempt_id,data) SELECT ?,coalesce(max(sequence),0)+1,?,? FROM release_authorizations WHERE release_id=?", r.Receipt.ReleaseID, binding.AttemptID, encode(binding), r.Receipt.ReleaseID); err != nil {
-		return storageError()
-	}
-	if state != "MATCH" {
-		if _, err = tx.ExecContext(ctx, "UPDATE release_reservations SET written=0 WHERE release_id=?", r.Receipt.ReleaseID); err != nil {
-			return storageError()
-		}
-	}
-	if tx.Commit() != nil {
-		return storageError()
 	}
 	if state == "MATCH" {
 		if err = b.publishReleaseLocked(ctx, r, root, staging); err != nil {
@@ -268,13 +274,56 @@ func (b *Broker) resumeReleaseLocked(ctx context.Context, r *releaseRecord) erro
 	return nil
 }
 
+// commitResumeLocked admits the new authorization before any temp cleanup or record change and updates *r only after commit.
+func (b *Broker) commitResumeLocked(ctx context.Context, r *releaseRecord, binding releaseBinding, staging *os.File, state string) error {
+	tx, err := b.db.BeginTx(ctx, nil)
+	if err != nil {
+		return storageError()
+	}
+	defer tx.Rollback()
+	if err = b.admission(tx, 0); err != nil {
+		return err
+	}
+	next := *r
+	if state != "MATCH" {
+		if err = cleanupReleaseTemp(staging, next); err != nil {
+			return err
+		}
+		next.Generation++
+		next.TempName = releaseTempName(next.Receipt.ReleaseID, next.Generation)
+		next.TempIdentity = nil
+	}
+	next.Authorization = binding
+	next.Receipt.State = "PREPARED"
+	if state == "MATCH" {
+		next.Receipt.State = "READY"
+	}
+	next.Receipt.ReasonCodes = []string{}
+	if err = writeRelease(ctx, tx, next); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, "INSERT INTO release_authorizations(release_id,sequence,attempt_id,data) SELECT ?,coalesce(max(sequence),0)+1,?,? FROM release_authorizations WHERE release_id=?", next.Receipt.ReleaseID, binding.AttemptID, encode(binding), next.Receipt.ReleaseID); err != nil {
+		return storageError()
+	}
+	if state != "MATCH" {
+		if _, err = tx.ExecContext(ctx, "UPDATE release_reservations SET written=0 WHERE release_id=?", next.Receipt.ReleaseID); err != nil {
+			return storageError()
+		}
+	}
+	if tx.Commit() != nil {
+		return storageError()
+	}
+	*r = next
+	return nil
+}
+
 func sameReleaseBinding(a, b releaseBinding) bool {
 	a.AuthorizedAt, b.AuthorizedAt = "", ""
 	return a == b
 }
 
 func (b *Broker) nextReleaseLocked() {
-	if b.closed || !Stage0Passed || b.releaseActive != nil {
+	if b.closed || b.recoveryBlocked || !Stage0Passed || b.releaseActive != nil {
 		return
 	}
 	ids, err := b.releaseIDs(context.Background(), false)
@@ -304,10 +353,14 @@ func (b *Broker) writeReleaseOutput(ctx context.Context, run *releaseRun, r rele
 		current, err := readRelease(context.Background(), b.db, run.id)
 		if err == nil && !current.terminal() {
 			if cause != nil && !current.Receipt.AbortRequested && errorCodeForRelease(cause) != "REVALIDATION_REQUIRED" {
-				_ = b.holdRelease(context.Background(), &current, errorCodeForRelease(cause))
+				err = b.holdRelease(context.Background(), &current, errorCodeForRelease(cause))
 			} else {
-				_ = b.reconcileReleaseLocked(context.Background(), &current)
+				err = b.reconcileReleaseLocked(context.Background(), &current)
 			}
+		}
+		// An unrecorded release outcome blocks new work, including restarting this release, until recovery.
+		if err != nil {
+			b.recoveryBlocked = true
 		}
 		run.cancel()
 		close(run.done)
@@ -339,7 +392,7 @@ func (b *Broker) writeReleaseOutput(ctx context.Context, run *releaseRun, r rele
 	j, authErr := readJob(context.Background(), b.db, current.Receipt.JobID)
 	var binding releaseBinding
 	if authErr == nil {
-		binding, authErr = b.currentReleaseAuthorization(context.Background(), j)
+		binding, authErr = b.currentReleaseAuthorization(context.Background(), j, nil)
 	}
 	if authErr != nil || !sameReleaseBinding(binding, current.Authorization) {
 		current.Receipt.State = "REVALIDATION_REQUIRED"
@@ -428,13 +481,10 @@ func (b *Broker) writeReleaseOutput(ctx context.Context, run *releaseRun, r rele
 				break
 			}
 			h.Write(buf[:n])
+			// Progress stays in RAM during the copy, so the capacity checks see it without a database write per read.
 			b.mu.Lock()
-			_, e = b.db.Exec("UPDATE release_reservations SET written=? WHERE release_id=?", written, run.id)
+			run.written = written
 			b.mu.Unlock()
-			if e != nil {
-				cause = storageError()
-				break
-			}
 		}
 		if readErr == io.EOF {
 			break
@@ -484,6 +534,11 @@ func (b *Broker) writeReleaseOutput(ctx context.Context, run *releaseRun, r rele
 		cause = err
 		return
 	}
+	// The verified, synchronized copy is recorded once before READY while this run still owns the live credit.
+	if _, err = b.db.Exec("UPDATE release_reservations SET written=? WHERE release_id=?", written, run.id); err != nil {
+		cause = storageError()
+		return
+	}
 	current.Receipt.State = "READY"
 	if err = b.saveRelease(context.Background(), current); err != nil {
 		cause = err
@@ -519,7 +574,7 @@ func (b *Broker) publishReleaseLocked(ctx context.Context, r *releaseRecord, roo
 	if err != nil {
 		return err
 	}
-	binding, err := b.currentReleaseAuthorization(ctx, j)
+	binding, err := b.currentReleaseAuthorization(ctx, j, nil)
 	if err != nil || !sameReleaseBinding(binding, r.Authorization) {
 		return failure("REVALIDATION_REQUIRED", 409)
 	}
@@ -574,7 +629,7 @@ func (b *Broker) publishReleaseLocked(ctx context.Context, r *releaseRecord, roo
 		return storageError()
 	}
 	// 同じmuで取消・再検査・定義切替を直列化し、INTENT同期に費やした間の失効も確認する。
-	binding, err = b.currentReleaseAuthorization(ctx, j)
+	binding, err = b.currentReleaseAuthorization(ctx, j, nil)
 	if err != nil || !sameReleaseBinding(binding, r.Authorization) {
 		if e := b.resolvePublication(ctx, &attempt, "NO_PUBLICATION_PROVEN", "authorization_expired_before_syscall"); e != nil {
 			return e

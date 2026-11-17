@@ -18,7 +18,7 @@ import (
 
 func uidString() string { return strconv.Itoa(os.Getuid()) }
 
-func qualify(ctx context.Context, r *hostvm.Runtime, build object, buildDirectory, out string) (report object, returned error) {
+func qualify(ctx context.Context, r *hostvm.Runtime, build object, buildDirectory, out, fault string) (report object, returned error) {
 	pins, err := sourcePins(r.Root)
 	if err != nil {
 		return nil, err
@@ -47,21 +47,32 @@ func qualify(ctx context.Context, r *hostvm.Runtime, build object, buildDirector
 	config := object{"schema": 1, "mode": "fixture", "owner_kind": "scan", "require_launchagent": true, "run_directory": run, "control_directory": control,
 		"continuous_start_ns": started, "continuous_deadline_ns": started + 300*1e9,
 		"vm_argv": []string{r.NativeBinary, "fixture-child", "fixture-vm", "normal"}, "helper_argv": []string{r.NativeBinary, "fixture-child", "fixture-helper", "heartbeat-stop"}}
+	intentKind, reportKind, scope := "go_native_proof_intent", "launchagent_death", "fixed harmless native fixture children; no QEMU or product scan"
+	if fault != "" {
+		config["fixture_resource_fault"] = fault
+		intentKind, reportKind = "go_native_resource_intent", "native_resource_fixture"
+		scope = "fixed harmless native fixture children with a synthetic resource value injected by the native fixture hook; not real OS memory pressure, reboot or sleep; no QEMU or product scan"
+	}
 	boot, err := hostvm.BootUUID()
 	if err != nil {
 		return nil, err
 	}
-	intent := object{"schema": 1, "kind": "go_native_proof_intent", "control_directory": control, "run_directory": run, "target": target, "config": config,
+	intent := object{"schema": 1, "kind": intentKind, "control_directory": control, "run_directory": run, "target": target, "config": config,
 		"boot_session_uuid": boot, "binary_sha256": build["binary_sha256"], "native_source_sha256": build["source_sha256"]}
 	if _, err = hostvm.WriteNew(filepath.Join(out, "native-intent.json"), intent); err != nil {
 		return nil, err
 	}
-	report = object{"schema": 1, "kind": "launchagent_death", "passed": false, "host": host, "native_platform": platform,
+	report = object{"schema": 1, "kind": reportKind, "passed": false, "host": host, "native_platform": platform,
 		"binary_sha256": build["binary_sha256"], "native_source_sha256": build["source_sha256"], "control_directory": control, "target": target,
 		"qemu_started": false, "normal_completion_disabled": true, "stop_events_observed": false, "guardian_result_verified": false,
 		"guardian_fixture_vm_sigkill_confirmed": false, "cleanup_all_exited": false, "temporary_service_absent": false, "broker_events": []any{}, "broker_signals": []any{}, "identity_measurement_failures": []any{},
 		"implementation": "go", "python_dependency": false, "raw_allocation_bytes": 0, "global_slot_finalized": false,
-		"child_signal_scope": "broker signals only watchdog; native guardian performs identity-checked target cleanup", "proof_scope": "fixed harmless native fixture children; no QEMU or product scan"}
+		"child_signal_scope": "broker signals only watchdog; native guardian performs identity-checked target cleanup", "proof_scope": scope}
+	if fault != "" {
+		report["resource_fault"] = fault
+		report["resource_expectation"] = resourceExpectations[fault]
+		report["child_signal_scope"] = "broker sends no signal before the native decision; native guardian performs identity-checked target cleanup"
+	}
 	defer func() {
 		if returned != nil {
 			report["error"] = returned.Error()
@@ -137,11 +148,15 @@ func qualify(ctx context.Context, r *hostvm.Runtime, build object, buildDirector
 	if err != nil {
 		return report, err
 	}
-	buildSHA, err := hostvm.HashFile(filepath.Join(buildDirectory, "build.json"))
+	record := filepath.Join(buildDirectory, "build.json")
+	if hostvm.Str(build, "kind") == "go_native_monitor_reuse" {
+		record = filepath.Join(buildDirectory, "reuse.json")
+	}
+	buildSHA, err := hostvm.HashFile(record)
 	if err != nil {
 		return report, err
 	}
-	producer := object{"schema": 1, "runner": self, "runner_sha256": selfSHA, "source_sha256": pins, "native_build_path": filepath.Join(buildDirectory, "build.json"), "native_build_sha256": buildSHA}
+	producer := object{"schema": 1, "runner": self, "runner_sha256": selfSHA, "source_sha256": pins, "native_build_path": record, "native_build_sha256": buildSHA}
 	if _, err = hostvm.WriteNew(filepath.Join(out, "producer-source.json"), producer); err != nil {
 		return report, err
 	}
@@ -225,7 +240,7 @@ func cleanup(r *hostvm.Runtime, out string, intent, report object) error {
 	}
 	if _, err := os.Lstat(filepath.Join(out, "native-bootstrap-dispatched.json")); err == nil {
 		config, _, err := hostvm.Read(filepath.Join(control, "config.json"), hostvm.ControlLimit)
-		if err != nil || !hostvm.Equal(config, intent["config"]) || !fixedConfig(r, config) {
+		if err != nil || !hostvm.Equal(config, intent["config"]) || !intentConfig(r, intent, config) {
 			return failure("NATIVE_PROOF_CONTROL_INPUTS_CHANGED")
 		}
 		plist, err := hostvm.ReadBytes(filepath.Join(control, "watchdog.plist"), hostvm.ControlLimit)
@@ -252,10 +267,14 @@ func cleanup(r *hostvm.Runtime, out string, intent, report object) error {
 	if err != nil {
 		return err
 	}
+	// The resource fixture must end through the native stop path; the death proof must not.
+	resource := hostvm.Str(report, "kind") == "native_resource_fixture"
 	for _, event := range combined {
 		if hostvm.Str(event, "event") == "STOP_BEGIN" || hostvm.Str(event, "event") == "FINISHED" {
 			report["stop_events_observed"] = true
-			report["passed"] = false
+			if !resource {
+				report["passed"] = false
+			}
 		}
 	}
 	before := hostvm.ReadbackAll(ids)
@@ -331,7 +350,7 @@ func cleanup(r *hostvm.Runtime, out string, intent, report object) error {
 		return err
 	}
 	report["global_slot_finalized"] = true
-	report["passed"] = report["passed"] == true && report["cleanup_all_exited"] == true && report["stop_events_observed"] == false && report["emergency_owned_cleanup"] != true
+	report["passed"] = report["passed"] == true && report["cleanup_all_exited"] == true && report["stop_events_observed"] == resource && report["emergency_owned_cleanup"] != true
 	return nil
 }
 
@@ -420,7 +439,7 @@ func recoverProof(r *hostvm.Runtime, out string) error {
 	config := hostvm.Map(intent, "config")
 	binarySHA, binaryErr := hostvm.HashFile(r.NativeBinary)
 	sourceSHA, sourceErr := hostvm.HashFile(r.NativeSource)
-	if hostvm.Str(intent, "kind") != "go_native_proof_intent" || hostvm.Int(intent, "schema") != 1 || !fixedConfig(r, config) ||
+	if hostvm.Int(intent, "schema") != 1 || !intentConfig(r, intent, config) ||
 		binaryErr != nil || sourceErr != nil || intent["binary_sha256"] != binarySHA || intent["native_source_sha256"] != sourceSHA ||
 		!hostvm.Equal(config["run_directory"], intent["run_directory"]) || !hostvm.Equal(config["control_directory"], intent["control_directory"]) ||
 		hostvm.Str(intent, "target") != fmt.Sprintf("gui/%d/com.filegate.stage0.integrated.%s", os.Getuid(), filepath.Base(hostvm.Str(intent, "control_directory"))) {
@@ -439,4 +458,29 @@ func fixedConfig(r *hostvm.Runtime, config object) bool {
 		hostvm.Int(config, "schema") == 1 && hostvm.Str(config, "mode") == "fixture" && hostvm.Str(config, "owner_kind") == "scan" && config["require_launchagent"] == true &&
 		hostvm.Int(config, "continuous_start_ns") > 0 && hostvm.Int(config, "continuous_deadline_ns")-hostvm.Int(config, "continuous_start_ns") == 300*1e9 &&
 		hostvm.Equal(config["vm_argv"], []string{r.NativeBinary, "fixture-child", "fixture-vm", "normal"}) && hostvm.Equal(config["helper_argv"], []string{r.NativeBinary, "fixture-child", "fixture-helper", "heartbeat-stop"})
+}
+
+// resourceExpectations pins, before any run, the native decision each fixture hook value must produce (integrated_watchdog.m:472-487, 588-606).
+var resourceExpectations = map[string]object{
+	"pressure-critical": {"reason": "HOST_RESOURCE_PRESSURE", "trigger": "os_pressure_critical", "max_elapsed_ns": int64(1500000000), "timing": "immediate after the hook is applied following TRANSFER_ALLOWED"},
+	"pressure-warning":  {"reason": "HOST_RESOURCE_PRESSURE", "trigger": "os_pressure_warning", "min_elapsed_ns": int64(3000000000), "max_elapsed_ns": int64(5000000000), "min_warning_elapsed_ns": int64(3000000000), "timing": "warning persists 3 seconds"},
+	"measure-failure":   {"reason": "RESOURCE_MONITOR_FAILED", "trigger": "memory_measurement_failed", "attempts": int64(2), "max_elapsed_ns": int64(1500000000), "timing": "first sample after the hook; two failed measurements in that sample (immediate retry), not two sampling periods"},
+	"memory-limit":      {"reason": "HOST_RESOURCE_PRESSURE", "trigger": "observed_memory_limit", "limit_bytes": int64(6 << 30), "footprint_bytes": int64(6<<30 + 1), "max_elapsed_ns": int64(1500000000), "timing": "first sample after the hook reports 6 GiB + 1 byte"},
+}
+
+// intentConfig accepts the launchagent-death config for a proof intent, or that same config plus exactly one known hook value for a resource intent.
+func intentConfig(r *hostvm.Runtime, intent, config object) bool {
+	switch hostvm.Str(intent, "kind") {
+	case "go_native_proof_intent":
+		return fixedConfig(r, config)
+	case "go_native_resource_intent":
+		base := object{}
+		for key, value := range config {
+			if key != "fixture_resource_fault" {
+				base[key] = value
+			}
+		}
+		return resourceExpectations[hostvm.Str(config, "fixture_resource_fault")] != nil && fixedConfig(r, base)
+	}
+	return false
 }

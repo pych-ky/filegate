@@ -6,7 +6,7 @@ import (
 )
 
 // Current update timing does not change the stored attempt.
-func (b *Broker) projectNextAllowedAt(jobs ...*Job) error {
+func (b *Broker) projectNextAllowedAt(view *releaseView, jobs ...*Job) error {
 	related := false
 	for _, job := range jobs {
 		job.NextAllowedAt = nil
@@ -15,10 +15,11 @@ func (b *Broker) projectNextAllowedAt(jobs ...*Job) error {
 	if !related {
 		return nil
 	}
-	status, err := b.updateStateLocked()
+	status, err := b.updateStateLocked(view)
 	if err != nil {
+		// A refused optional control write leaves the timing unknown, which the job shows as null.
 		var denied *Error
-		if errors.As(err, &denied) && denied.Code == "UPDATE_CLOCK_UNCERTAIN" {
+		if errors.As(err, &denied) && (denied.Code == "UPDATE_CLOCK_UNCERTAIN" || denied.Code == "QUOTA_EXCEEDED") {
 			return nil
 		}
 		return err

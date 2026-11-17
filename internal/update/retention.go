@@ -72,7 +72,9 @@ func retentionSameDirectory(s unix.Stat_t, expected retentionIdentity) bool {
 }
 
 // Prune retains live references and the current control record independently of history.
-func (s *Store) Prune(dataDir string, cutoff int64, protected map[string]bool, resumeOnly bool) (RetentionResult, error) {
+// admit runs in each NEW optional writing transaction before its first write; nil (startup resumeOnly) admits all. Already
+// durable plans finish first without it, and its error is returned unchanged.
+func (s *Store) Prune(dataDir string, cutoff int64, protected map[string]bool, resumeOnly bool, admit func(*sql.Tx) error) (RetentionResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var result RetentionResult
@@ -158,6 +160,8 @@ func (s *Store) Prune(dataDir string, cutoff int64, protected map[string]bool, r
 		tx.Rollback()
 		return result, err
 	}
+	var unanchored []*retainedUpdate
+	anchors := map[string]int64{}
 	for i := range all {
 		r := &all[i]
 		a := r.attempt
@@ -167,20 +171,17 @@ func (s *Store) Prune(dataDir string, cutoff int64, protected map[string]bool, r
 			pins[a.ID] = true
 			continue
 		}
-		anchor := a.FinishedUTC
-		if anchor <= 0 || anchor > MaxUTC {
-			anchor = cutoff
-		}
-		if !resumeOnly {
-			if _, err = tx.Exec("INSERT OR IGNORE INTO update_retention(update_id,resolved_at) VALUES(?,?)", a.ID, anchor); err != nil {
-				tx.Rollback()
-				return result, err
-			}
-		}
 		err = tx.QueryRow("SELECT resolved_at,definition_removed,runtime_removed,pending FROM update_retention WHERE update_id=?", a.ID).
 			Scan(&r.resolved, &r.definitionRemoved, &r.runtimeRemoved, &r.pending)
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
+			if !resumeOnly {
+				anchor := a.FinishedUTC
+				if anchor <= 0 || anchor > MaxUTC {
+					anchor = cutoff
+				}
+				unanchored, anchors[a.ID] = append(unanchored, r), anchor
+			}
 			continue
 		}
 		if err != nil {
@@ -195,49 +196,80 @@ func (s *Store) Prune(dataDir string, cutoff int64, protected map[string]bool, r
 	if control.Definition != nil {
 		current = control.Definition.UpdateID
 	}
+	// Already durable plans are owed: they finish before any new unit can be refused, and are never admitted.
+	held := map[string]bool{}
 	for i := range all {
 		r := &all[i]
 		id := r.attempt.ID
-		if pins[id] || r.resolved == 0 {
+		if pins[id] || r.resolved == 0 || r.pending == nil {
 			continue
 		}
-		if r.pending != nil {
-			var plan retentionPlan
-			if retentionDecode(r.pending, &plan) != nil || plan.UpdateID != id || (plan.Kind == "definition" && id == current) {
-				result.Pending++
-				continue
-			}
-			if err = s.finishRetention(dataDir, plan); err != nil {
-				if _, e := s.db.Exec("UPDATE update_retention SET reason='CLEANUP_PENDING' WHERE update_id=?", id); e != nil {
-					return result, e
-				}
-				result.Pending++
-				continue
-			}
-			if plan.Kind == "definition" {
-				r.definitionRemoved = true
-				result.DefinitionsRemoved++
-			} else {
-				r.runtimeRemoved = true
-				result.RuntimesRemoved++
-			}
+		held[id] = true
+		var plan retentionPlan
+		if retentionDecode(r.pending, &plan) != nil || plan.UpdateID != id || (plan.Kind == "definition" && id == current) {
+			result.Pending++
+			continue
 		}
-		if resumeOnly {
+		if err = s.finishRetention(dataDir, plan); err != nil {
+			if _, e := s.db.Exec("UPDATE update_retention SET reason='CLEANUP_PENDING' WHERE update_id=?", id); e != nil {
+				return result, e
+			}
+			result.Pending++
+			continue
+		}
+		held[id] = false
+		if plan.Kind == "definition" {
+			r.definitionRemoved = true
+			result.DefinitionsRemoved++
+		} else {
+			r.runtimeRemoved = true
+			result.RuntimesRemoved++
+		}
+	}
+	if resumeOnly {
+		return result, nil
+	}
+	// New anchors are optional writes, at most 500 per admitted transaction.
+	for start := 0; start < len(unanchored); start += 500 {
+		if err = s.retentionTx(admit, func(tx *sql.Tx) error {
+			for _, r := range unanchored[start:min(start+500, len(unanchored))] {
+				if _, err := tx.Exec("INSERT OR IGNORE INTO update_retention(update_id,resolved_at) VALUES(?,?)", r.attempt.ID, anchors[r.attempt.ID]); err != nil {
+					return err
+				}
+				if err := tx.QueryRow("SELECT resolved_at,definition_removed,runtime_removed,pending FROM update_retention WHERE update_id=?", r.attempt.ID).
+					Scan(&r.resolved, &r.definitionRemoved, &r.runtimeRemoved, &r.pending); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return result, unwrapRefusal(err)
+		}
+	}
+	for i := range all {
+		r := &all[i]
+		id := r.attempt.ID
+		if pins[id] || r.resolved == 0 || held[id] {
 			continue
 		}
 		if id != current && r.adoption != nil && !r.definitionRemoved {
+			persisted := false
 			plan, e := definitionRetentionPlan(dataDir, *r)
 			if e == nil {
-				e = s.beginRetention(plan)
+				e = s.beginRetention(plan, admit)
+				persisted = e == nil
+			}
+			if refusal(e) {
+				return result, unwrapRefusal(e)
 			}
 			if e == nil {
 				e = s.finishRetention(dataDir, plan)
 			}
 			if e != nil {
-				result.Pending++
-				if _, err = s.db.Exec("UPDATE update_retention SET reason='CLEANUP_PENDING' WHERE update_id=?", id); err != nil {
-					return result, err
+				if err = s.cleanupReason(id, persisted, admit); err != nil {
+					return result, unwrapRefusal(err)
 				}
+				result.Pending++
 				continue
 			}
 			r.definitionRemoved = true
@@ -247,23 +279,31 @@ func (s *Store) Prune(dataDir string, cutoff int64, protected map[string]bool, r
 			continue
 		}
 		if !r.runtimeRemoved {
+			persisted := false
 			if r.directory == "" {
-				_, err = s.db.Exec("UPDATE update_retention SET runtime_removed=1 WHERE update_id=?", id)
+				err = s.retentionTx(admit, func(tx *sql.Tx) error {
+					_, err := tx.Exec("UPDATE update_retention SET runtime_removed=1 WHERE update_id=?", id)
+					return err
+				})
 			} else {
 				var plan retentionPlan
 				plan, err = s.runtimeRetentionPlan(dataDir, *r)
 				if err == nil {
-					err = s.beginRetention(plan)
+					err = s.beginRetention(plan, admit)
+					persisted = err == nil
 				}
 				if err == nil {
 					err = s.finishRetention(dataDir, plan)
 				}
 			}
+			if refusal(err) {
+				return result, unwrapRefusal(err)
+			}
 			if err != nil {
-				result.Pending++
-				if _, e := s.db.Exec("UPDATE update_retention SET reason='CLEANUP_PENDING' WHERE update_id=?", id); e != nil {
-					return result, e
+				if e := s.cleanupReason(id, persisted, admit); e != nil {
+					return result, unwrapRefusal(e)
 				}
+				result.Pending++
 				continue
 			}
 			r.runtimeRemoved = true
@@ -272,25 +312,68 @@ func (s *Store) Prune(dataDir string, cutoff int64, protected map[string]bool, r
 		if id == current || id == control.LastUpdateID || r.adoption != nil && !r.definitionRemoved {
 			continue
 		}
-		tx, err = s.db.BeginTx(context.Background(), nil)
-		if err != nil {
-			return result, err
-		}
-		for _, query := range []string{"DELETE FROM update_adoptions WHERE update_id=?", "DELETE FROM update_runtime WHERE update_id=?", "DELETE FROM update_attempts WHERE id=?"} {
-			if _, err = tx.Exec(query, id); err != nil {
-				break
+		if err = s.retentionTx(admit, func(tx *sql.Tx) error {
+			for _, query := range []string{"DELETE FROM update_adoptions WHERE update_id=?", "DELETE FROM update_runtime WHERE update_id=?", "DELETE FROM update_attempts WHERE id=?"} {
+				if _, err := tx.Exec(query, id); err != nil {
+					return err
+				}
 			}
-		}
-		if err != nil {
-			tx.Rollback()
-			return result, err
-		}
-		if err = tx.Commit(); err != nil {
-			return result, err
+			return nil
+		}); err != nil {
+			return result, unwrapRefusal(err)
 		}
 		result.HistoriesRemoved++
 	}
 	return result, nil
+}
+
+// retentionRefusal carries an admit error through a retention helper so Prune can return it unchanged.
+type retentionRefusal struct{ err error }
+
+func (r retentionRefusal) Error() string { return r.err.Error() }
+
+func refusal(err error) bool {
+	var r retentionRefusal
+	return errors.As(err, &r)
+}
+
+func unwrapRefusal(err error) error {
+	var r retentionRefusal
+	if errors.As(err, &r) {
+		return r.err
+	}
+	return err
+}
+
+// cleanupReason records CLEANUP_PENDING: owed and unadmitted once the plan is durable, otherwise a new optional write.
+func (s *Store) cleanupReason(id string, persisted bool, admit func(*sql.Tx) error) error {
+	const query = "UPDATE update_retention SET reason='CLEANUP_PENDING' WHERE update_id=?"
+	if persisted {
+		_, err := s.db.Exec(query, id)
+		return err
+	}
+	return s.retentionTx(admit, func(tx *sql.Tx) error {
+		_, err := tx.Exec(query, id)
+		return err
+	})
+}
+
+// retentionTx runs one new optional retention write after admit accepts it in the same immediate transaction.
+func (s *Store) retentionTx(admit func(*sql.Tx) error, write func(*sql.Tx) error) error {
+	tx, err := s.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if admit != nil {
+		if err = admit(tx); err != nil {
+			return retentionRefusal{err}
+		}
+	}
+	if err = write(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func retentionDecode(body []byte, target any) error {
@@ -308,20 +391,21 @@ func retentionDecode(body []byte, target any) error {
 	return nil
 }
 
-func (s *Store) beginRetention(plan retentionPlan) error {
+func (s *Store) beginRetention(plan retentionPlan, admit func(*sql.Tx) error) error {
 	body := encoded(plan)
 	if len(body) > 65536 {
 		return Invalid
 	}
-	changed, err := s.db.Exec("UPDATE update_retention SET pending=?,reason='' WHERE update_id=? AND pending IS NULL", body, plan.UpdateID)
-	if err != nil {
-		return err
-	}
-	count, err := changed.RowsAffected()
-	if err != nil || count != 1 {
-		return Invalid
-	}
-	return nil
+	return s.retentionTx(admit, func(tx *sql.Tx) error {
+		changed, err := tx.Exec("UPDATE update_retention SET pending=?,reason='' WHERE update_id=? AND pending IS NULL", body, plan.UpdateID)
+		if err != nil {
+			return err
+		}
+		if count, err := changed.RowsAffected(); err != nil || count != 1 {
+			return Invalid
+		}
+		return nil
+	})
 }
 
 func captureRetention(path, id, kind string, rules map[string]usageRule, directories map[string]bool) (retentionPlan, error) {

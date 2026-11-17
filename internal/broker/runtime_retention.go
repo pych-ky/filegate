@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"database/sql"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,8 +35,11 @@ func (b *Broker) pruneReports(ctx context.Context, jobID string) error {
 		if r.raw != 0 || r.state != "FINISHED" || r.directory != filepath.Join(b.config.DataDir, "runtime", r.id) {
 			return failure("RECOVERY_REQUIRED", 503)
 		}
-		if _, err = b.db.ExecContext(ctx, "UPDATE runtime_runs SET state='REPORT_PRUNING' WHERE attempt_id=?", r.id); err != nil {
-			return storageError()
+		if err = b.maintenanceTx(ctx, 0, func(tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, "UPDATE runtime_runs SET state='REPORT_PRUNING' WHERE attempt_id=?", r.id)
+			return err
+		}); err != nil {
+			return err
 		}
 		if err = b.finishReportDeletion(r.id, r.directory); err != nil {
 			return err
@@ -92,8 +96,14 @@ func (b *Broker) pruneRuntimes(ctx context.Context, jobID string) error {
 		if r.raw != 0 || (r.state != "FINISHED" && r.state != "PRUNING") || r.directory != filepath.Join(b.config.DataDir, "runtime", r.id) {
 			return failure("RECOVERY_REQUIRED", 503)
 		}
-		if _, err = b.db.ExecContext(ctx, "UPDATE runtime_runs SET state='PRUNING' WHERE attempt_id=?", r.id); err != nil {
-			return storageError()
+		// A resumed PRUNING intent only finishes; a new one is admitted first.
+		if r.state == "FINISHED" {
+			if err = b.maintenanceTx(ctx, 0, func(tx *sql.Tx) error {
+				_, err := tx.ExecContext(ctx, "UPDATE runtime_runs SET state='PRUNING' WHERE attempt_id=?", r.id)
+				return err
+			}); err != nil {
+				return err
+			}
 		}
 		if err = b.finishRuntimeDeletion(r.id, r.directory); err != nil {
 			return err

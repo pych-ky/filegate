@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"filegate.local/filegate/internal/av"
+	"filegate.local/filegate/internal/qemuruntime"
 )
 
 func freshclamSources(repository string) (map[string]string, error) {
@@ -486,15 +487,14 @@ func BuildUpdate(ctx context.Context, options BuildOptions) (map[string]any, err
 	for path, value := range outputArtifacts {
 		pins[path] = value
 	}
-	qemu, err := exec.LookPath("qemu-system-aarch64")
+	runtimePins, err := qemuRuntimePins(baseline)
 	if err != nil {
 		return nil, err
 	}
-	imageTool, err := exec.LookPath("qemu-img")
-	if err != nil {
-		return nil, err
+	for path, hash := range runtimePins {
+		pins[path] = hash
 	}
-	for _, path := range []string{build, proof, adapterManifest, nativeBinary, qemu, imageTool} {
+	for _, path := range []string{build, proof, adapterManifest, nativeBinary} {
 		actual, err := filepath.EvalSymlinks(path)
 		if err != nil {
 			return nil, err
@@ -516,4 +516,16 @@ func BuildUpdate(ctx context.Context, options BuildOptions) (map[string]any, err
 		return nil, err
 	}
 	return map[string]any{"registration_candidate": registration, "registered": false, "runtime_executed": false, "python_dependency": false, "source_count": len(sources), "pin_count": len(pins)}, nil
+}
+
+// qemuRuntimePins verifies the QEMU closure frozen in a scan build receipt and returns its files for an update registration's pins.
+func qemuRuntimePins(receipt map[string]any) (map[string]string, error) {
+	tools, err := qemuruntime.Decode(receipt["qemu_runtime"])
+	if err != nil {
+		return nil, err
+	}
+	if _, err = qemuruntime.Verify(tools); err != nil {
+		return nil, err
+	}
+	return tools.Files(), nil
 }

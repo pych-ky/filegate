@@ -41,6 +41,10 @@ func runRules(names []string, normal bool) (map[string]fileRule, error) {
 	for _, name := range []string{"normal-exchange.json", "normal-exchange.json.pending", "update-bridge.json", "update-bridge.json.pending", "fixture-observation.json", "fixture-observation.pending", "fixture-observation.json.pending"} {
 		rules[name] = fileRule{maximum: 1 << 20}
 	}
+	// Only workspace-block-io lists these names; QEMU creates qmp.sock and the fixture bridge writes fixture-qmp.json.
+	rules["qmp.sock"] = fileRule{socket: true}
+	rules["fixture-qmp.json"] = fileRule{maximum: 1 << 20}
+	rules["fixture-qmp.json.pending"] = fileRule{maximum: 1 << 20}
 	selected := map[string]fileRule{}
 	for _, name := range names {
 		if name == "normal-exchange.json" || name == "normal-exchange.json.pending" {
@@ -473,7 +477,7 @@ func (r *Runtime) cleanupIntent(out string, req, proof, native Object, rules map
 	_, e = WriteOnce(path, v)
 	return v, e
 }
-func (r *Runtime) finishCleanup(out string, req, proof Object) (Object, error) {
+func (r *Runtime) finishCleanup(out string, req, proof Object, profile Profile) (Object, error) {
 	intentSHA, e := DigestControl(filepath.Join(out, "cleanup-intent.json"), ControlLimit)
 	if e != nil {
 		return nil, e
@@ -489,7 +493,7 @@ func (r *Runtime) finishCleanup(out string, req, proof Object) (Object, error) {
 	if _, e = WriteOnce(filepath.Join(out, "raw-cleanup.json"), Object{"reclaimed": true, "reservation_charge_bytes": 0, "closed_fd_evidence": "identity-bound stop-proof.json", "external_directories_reclaimed": true}); e != nil {
 		return nil, e
 	}
-	if e = r.ReleaseSlot(out, req); e != nil {
+	if e = r.ReleaseSlot(out, req, profile); e != nil {
 		return nil, e
 	}
 	return Object{"path": "cleanup-complete.json", "sha256": sha}, nil
@@ -524,7 +528,7 @@ func (r *Runtime) Cleanup(out string, req, native Object, profile Profile, runFi
 	if e = reclaimDirectories(intent, rules); e != nil {
 		return nil, e
 	}
-	return r.finishCleanup(out, req, proof)
+	return r.finishCleanup(out, req, proof, profile)
 }
 func (r *Runtime) CleanupUnstartedResources(out string, req Object) (Object, error) {
 	resources, e := r.ReadResources(out, req)
@@ -666,5 +670,6 @@ func (r *Runtime) CleanupUnstartedResources(out string, req Object) (Object, err
 	if e = reclaimDirectories(intent, map[string]fileRule{}); e != nil {
 		return nil, e
 	}
-	return r.finishCleanup(out, req, proof)
+	// Unstarted resources have no previous-boot proof.
+	return r.finishCleanup(out, req, proof, Profile{})
 }

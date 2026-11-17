@@ -119,6 +119,7 @@ type PruneResult struct {
 	UpdateRuntimesRemoved  int    `json:"update_runtimes_removed"`
 	UpdateHistoriesRemoved int    `json:"update_histories_removed"`
 	UpdateCleanupPending   int    `json:"update_cleanup_pending"`
+	Deferred               bool   `json:"deferred"`
 }
 
 type Error struct {

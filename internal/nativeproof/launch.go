@@ -263,6 +263,9 @@ func monitor(ctx context.Context, r *hostvm.Runtime, config, report object, cont
 		if err != nil {
 			return err
 		}
+		if first(stream.events, "TRANSFER_ALLOWED") != nil && config["fixture_resource_fault"] != nil {
+			return resourceStop(ctx, client, stream, control, config, report)
+		}
 		for _, event := range stream.events {
 			if hostvm.Str(event, "event") == "STOP_BEGIN" || hostvm.Str(event, "event") == "FINISHED" {
 				return failure("NATIVE_PROOF_STOP_PRECEDED_DEATH")
@@ -276,4 +279,90 @@ func monitor(ctx context.Context, r *hostvm.Runtime, config, report object, cont
 		}
 	}
 	return failure("NATIVE_PROOF_DEADLINE_OR_CANCELLED")
+}
+
+// resourceStop keeps the broker heartbeat and sends no signal while it waits for the native resource decision, then checks that decision and the guardian's identity-checked cleanup.
+func resourceStop(ctx context.Context, client *net.UnixConn, stream *eventStream, control string, config, report object) error {
+	disk, err := hostvm.NativeEvents(control)
+	if err != nil {
+		return err
+	}
+	watchdog, children, err := milestoneProof(disk, stream.events, config)
+	if err != nil {
+		return err
+	}
+	ids := append([]object{watchdog}, children...)
+	report["resource_processes"] = objects(ids)
+	report["resource_before"] = hostvm.ReadbackAll(ids)
+	deadline := time.Now().Add(15 * time.Second)
+	nextHeartbeat := time.Time{}
+	open := true
+	for open && time.Now().Before(deadline) && ctx.Err() == nil {
+		if first(stream.events, "STOP_BEGIN") == nil && !time.Now().Before(nextHeartbeat) {
+			if err = client.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+				return err
+			}
+			if _, err = client.Write([]byte("{\"event\":\"heartbeat\"}\n")); err != nil {
+				return err
+			}
+			nextHeartbeat = time.Now().Add(500 * time.Millisecond)
+		}
+		if open, err = stream.receive(200 * time.Millisecond); err != nil {
+			return err
+		}
+	}
+	stop, transfer := first(stream.events, "STOP_BEGIN"), first(stream.events, "TRANSFER_ALLOWED")
+	report["resource_stop"] = stop
+	if stop == nil {
+		return failure("NATIVE_RESOURCE_DECISION_MISSING")
+	}
+	if err = resourceDecision(hostvm.Str(config, "fixture_resource_fault"), transfer, stop, report); err != nil {
+		return err
+	}
+	after := hostvm.ReadbackAll(ids)
+	for started := time.Now(); !hostvm.AllExited(after) && time.Since(started) < 15*time.Second; after = hostvm.ReadbackAll(ids) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	report["resource_after"] = after
+	logged, err := hostvm.NativeEvents(control)
+	if err != nil {
+		return err
+	}
+	if !hostvm.Equal(first(logged, "STOP_BEGIN"), stop) {
+		return failure("NATIVE_RESOURCE_EVENT_MISMATCH")
+	}
+	death := false
+	guardian, err := hostvm.GuardianResult(control, watchdog, children, &death)
+	if err != nil {
+		return err
+	}
+	report["guardian_result"] = guardian
+	report["guardian_result_verified"] = true
+	if !hostvm.AllExited(after) {
+		return failure("NATIVE_RESOURCE_TARGETS_NOT_EXITED")
+	}
+	report["passed"] = true
+	return nil
+}
+
+// resourceDecision compares the native STOP_BEGIN with the pinned expectation; the human reason text is matched only as the fixed reason code.
+func resourceDecision(fault string, transfer, stop, report object) error {
+	expected := resourceExpectations[fault]
+	evidence := hostvm.Map(stop, "resource_evidence")
+	elapsed := hostvm.Int(stop, "continuous_ns") - hostvm.Int(transfer, "continuous_ns")
+	report["resource_decision_elapsed_ns"] = elapsed
+	ok := expected != nil && transfer != nil && hostvm.Str(stop, "reason") == hostvm.Str(expected, "reason") && hostvm.Str(evidence, "trigger") == hostvm.Str(expected, "trigger") &&
+		elapsed >= hostvm.Int(expected, "min_elapsed_ns") && elapsed <= hostvm.Int(expected, "max_elapsed_ns")
+	switch fault {
+	case "pressure-warning":
+		ok = ok && hostvm.Int(evidence, "warning_elapsed_ns") >= hostvm.Int(expected, "min_warning_elapsed_ns")
+	case "measure-failure":
+		ok = ok && hostvm.Int(evidence, "attempts") == hostvm.Int(expected, "attempts")
+	case "memory-limit":
+		ok = ok && hostvm.Int(evidence, "limit_bytes") == hostvm.Int(expected, "limit_bytes") && hostvm.Int(hostvm.Map(evidence, "sample"), "footprint_bytes") == hostvm.Int(expected, "footprint_bytes")
+	}
+	if !ok {
+		return failure("NATIVE_RESOURCE_DECISION_UNEXPECTED")
+	}
+	return nil
 }

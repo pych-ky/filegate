@@ -15,7 +15,7 @@ func vmCheckpointSource(mode, marker string) string {
 	return `
 func verificationCheckpoint(phase,out,run string,extra Object) {
  if phase!=` + string(Encoded(mode)) + ` { return }
- for _,arg:=range os.Args[1:] { if arg=="--recover" { return } }
+ if verificationRecovering() { return }
  current,e:=NativeIdentity(os.Getpid()); if e!=nil||current==nil { os.Exit(93) }
  parent,e:=NativeIdentity(os.Getppid()); if e!=nil||parent==nil { os.Exit(93) }
  value:=Object{"schema":1,"mode":phase,"identity":current,"parent":parent,"output_directory":out,"run_directory":run}
@@ -35,6 +35,10 @@ func verificationCheckpoint(phase,out,run string,extra Object) {
  for IdentityReadback(Object{"pid":parent["pid"],"start_abstime":parent["start_abstime"]})["same_identity_live"]!=false {time.Sleep(10*time.Millisecond)}
  if phase=="after-start-live" {for {if _,e:=os.Stat(` + string(Encoded(marker+".release")) + `);e==nil{break};time.Sleep(10*time.Millisecond)}}
  os.Exit(0)
+}
+func verificationRecovering() bool {
+ for _,arg:=range os.Args[1:] { if arg=="--recover" { return true } }
+ return false
 }
 func verificationPreviousBoot(out string) {
  if _,e:=os.Stat(` + string(Encoded(marker+".previous-boot")) + `);e!=nil{return}
@@ -56,7 +60,7 @@ func vmRuntimeWindow(mode string) vmWindow {
 	case "slot-before":
 		return vmWindow{"slot.go", "\tif e = os.Link(pending, intent); e != nil {", "verificationCheckpoint(\"slot-before\",out,Str(resources,\"run_directory\"),Object{\"slot_pending\":pending,\"slot_intent\":intent})"}
 	case "slot-after":
-		return vmWindow{"slot.go", "\tif e = SyncDirectory(r.State); e != nil {", "verificationCheckpoint(\"slot-after\",out,Str(resources,\"run_directory\"),Object{\"slot_pending\":pending,\"slot_intent\":intent})"}
+		return vmWindow{"slot.go", "\tif e = SyncDirectory(r.State); e != nil {\n\t\treturn fail(e)\n\t}\n\tvar info unix.Stat_t", "verificationCheckpoint(\"slot-after\",out,Str(resources,\"run_directory\"),Object{\"slot_pending\":pending,\"slot_intent\":intent})"}
 	case "run-created", "nonempty-run":
 		return vmWindow{"slot.go", "\treturn run, SyncDirectory(filepath.Dir(run))", "verificationCheckpoint(" + string(Encoded(mode)) + ",\"\",run,nil)"}
 	case "prepare-owner-before":
@@ -76,7 +80,7 @@ func vmRuntimeWindow(mode string) vmWindow {
 	case "bootstrap-owner-after":
 		return vmWindow{"process.go", "\tfailure := any(nil)", "if filepath.Base(ownershipPath)==\"native-bootstrap-owner.json\" {gate,e:=NativeIdentity(cmd.Process.Pid);if e!=nil{return nil,e};verificationCheckpoint(\"bootstrap-owner-after\",filepath.Dir(ownershipPath),\"\",Object{\"gate_identity\":gate})}"}
 	case "bootstrap-complete":
-		return vmWindow{"control.go", "\treturn result, e", "if e==nil {verificationCheckpoint(\"bootstrap-complete\",c.Out,\"\",nil)}"}
+		return vmWindow{"control.go", "\treturn result, e\n}\nfunc (c *Control) AuthorizeStart(", "if e==nil {verificationCheckpoint(\"bootstrap-complete\",c.Out,\"\",nil)}"}
 	case "native-start", "pre-guardian-death":
 		return vmWindow{"control.go", "\tc.StartRecorded = true", "verificationCheckpoint(" + string(Encoded(mode)) + ",c.Out,\"\",Object{\"watchdog\":id})"}
 	case "monitor-ready", "watchdog-death":
@@ -84,7 +88,7 @@ func vmRuntimeWindow(mode string) vmWindow {
 	case "record-copy":
 		return vmWindow{"control.go", "\tsource, e := c.Runtime.ProducerSource()", "verificationCheckpoint(\"record-copy\",c.Out,\"\",nil)"}
 	case "results-pending":
-		return vmWindow{"files.go", "\tif e = os.Link(pending, path); e != nil {", "if filepath.Base(path)==\"results.json\"&&filepath.Base(filepath.Dir(path))==\"watchdog\" {f,e:=os.OpenFile(pending,os.O_WRONLY|unix.O_NOFOLLOW,0);if e!=nil{return \"\",e};if e=f.Truncate(int64(len(body)/2));e==nil{e=f.Sync()};f.Close();if e!=nil{return \"\",e};verificationCheckpoint(\"results-pending\",filepath.Dir(filepath.Dir(path)),\"\",Object{\"partial_result_bytes\":len(body)/2})}"}
+		return vmWindow{"files.go", "\tif e = os.Link(pending, path); e != nil {", "if !verificationRecovering()&&filepath.Base(path)==\"results.json\"&&filepath.Base(filepath.Dir(path))==\"watchdog\" {f,e:=os.OpenFile(pending,os.O_WRONLY|unix.O_NOFOLLOW,0);if e!=nil{return \"\",e};if e=f.Truncate(int64(len(body)/2));e==nil{e=f.Sync()};f.Close();if e!=nil{return \"\",e};verificationCheckpoint(\"results-pending\",filepath.Dir(filepath.Dir(path)),\"\",Object{\"partial_result_bytes\":len(body)/2})}"}
 	case "unknown-control":
 		return vmWindow{"control.go", "\tc.Directory = control", "verificationCheckpoint(\"unknown-control\",c.Out,Str(config,\"run_directory\"),Object{\"control_directory\":control})"}
 	case "bootstrap-dispatch", "bootstrap-dispatch-unknown", "bootstrap-dispatch-absent":
@@ -93,8 +97,8 @@ func vmRuntimeWindow(mode string) vmWindow {
 	panic(Failure{"unknown_runtime_fixture_window:" + mode})
 }
 func vmReplaceFirst(body, marker, replacement string) string {
-	if !strings.Contains(body, marker) {
-		panic(Failure{"fixture_marker_missing:" + marker})
+	if strings.Count(body, marker) != 1 {
+		panic(Failure{"fixture_marker_not_unique:" + marker})
 	}
 	return strings.Replace(body, marker, replacement, 1)
 }

@@ -45,9 +45,17 @@ func (b *Broker) startUpdateLocked(now updatecontrol.Clock) (string, error) {
 		return "", storageError()
 	}
 	id := newID("update")
-	_, attempt, err := u.store.BeginRuntime(u.runtime, filepath.Join(root, id), id, now)
+	_, attempt, err := u.store.BeginRuntime(u.runtime, filepath.Join(root, id), id, now, b.updateStartAdmission)
 	if err != nil {
-		return "", failure(err.Error(), 503)
+		var updateError updatecontrol.Error
+		if errors.As(err, &updateError) {
+			return "", failure(string(updateError), 503)
+		}
+		var brokerError *Error
+		if errors.As(err, &brokerError) {
+			return "", err
+		}
+		return "", storageError()
 	}
 	if attempt.ID != id {
 		return attempt.ID, nil

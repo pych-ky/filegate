@@ -162,7 +162,7 @@ func (b *Broker) Release(ctx context.Context, jobID, destination, key string) (R
 	if !Stage0Passed {
 		return ReleaseReceipt{}, failure("INCOMPLETE_REQUIRED_CHECKS", 409)
 	}
-	authorization, err := b.currentReleaseAuthorization(ctx, j)
+	authorization, err := b.currentReleaseAuthorization(ctx, j, func(tx *sql.Tx) error { return b.databaseBudget(tx) })
 	if err != nil {
 		return ReleaseReceipt{}, err
 	}
@@ -174,11 +174,18 @@ func (b *Broker) Release(ctx context.Context, jobID, destination, key string) (R
 	return b.releaseReceiptLocked(r), nil
 }
 
-func (b *Broker) currentReleaseAuthorization(ctx context.Context, j Job) (releaseBinding, error) {
+// admit is an optional caller's same-transaction budget check for the current-definition clock write; already admitted
+// release work passes nil.
+// Every real release step uses it, so it always runs the full check.
+func (b *Broker) currentReleaseAuthorization(ctx context.Context, j Job, admit func(*sql.Tx) error) (releaseBinding, error) {
+	return b.releaseAuthorization(ctx, j, admit, nil)
+}
+
+func (b *Broker) releaseAuthorization(ctx context.Context, j Job, admit func(*sql.Tx) error, v *releaseView) (releaseBinding, error) {
 	if !Stage0Passed || !j.Terminal() || j.Verdict != "PASS" || !j.Coverage.RequiredChecksComplete || !j.RuntimeCleanupComplete || j.InputReceipt == nil || !j.InputReceipt.ContentAvailable {
 		return releaseBinding{}, failure("INCOMPLETE_REQUIRED_CHECKS", 409)
 	}
-	return b.authorizedReleaseBinding(ctx, j)
+	return b.authorizedReleaseBinding(ctx, j, admit, v)
 }
 
 func (b *Broker) GetRelease(ctx context.Context, id string) (ReleaseReceipt, error) {
@@ -241,7 +248,7 @@ func (b *Broker) AbortRelease(ctx context.Context, id string) (ReleaseReceipt, e
 }
 
 func (b *Broker) releaseReceiptLocked(r releaseRecord) ReleaseReceipt {
-	receipt := r.Receipt
+	receipt := releaseResponseReceipt(r.Receipt)
 	receipt.HTTPStatus = 202
 	if r.terminal() {
 		receipt.HTTPStatus = 200

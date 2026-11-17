@@ -19,7 +19,7 @@ func snapshotDefinitionCache(tx *sql.Tx, id string, control Control) error {
 	var cache *ScanDefinition
 	if control.Definition != nil {
 		cache = &ScanDefinition{}
-		if err := readScanDefinition(tx, control.Definition, cache); err != nil {
+		if err := readScanDefinition(tx, control.Definition, cache, control.Clock.Boot); err != nil {
 			if !errors.Is(err, Error("DEFINITION_CACHE_MISSING")) {
 				return err
 			}

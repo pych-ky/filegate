@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -324,17 +325,28 @@ func (b *Broker) pruneReleases(ctx context.Context, cutoff time.Time) error {
 		if err != nil || !r.terminal() {
 			return storageError()
 		}
-		tx, err := b.db.BeginTx(ctx, nil)
-		if err != nil {
-			return storageError()
+		// Resolved histories go first, highest sequence first, so publicationAttempts keeps a contiguous 1..n prefix.
+		for _, table := range []string{"release_publication_attempts", "release_authorizations"} {
+			for removed := int64(100); removed == 100; {
+				if err = b.maintenanceTx(ctx, 0, func(tx *sql.Tx) error {
+					result, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE release_id=? AND sequence IN (SELECT sequence FROM "+table+" WHERE release_id=? ORDER BY sequence DESC LIMIT 100)", id, id)
+					if err == nil {
+						removed, err = result.RowsAffected()
+					}
+					return err
+				}); err != nil {
+					return err
+				}
+			}
 		}
-		_, err = tx.ExecContext(ctx, "INSERT INTO release_tombstones(key_hash,release_id,job_id,state) SELECT key_hash,id,job_id,state FROM releases WHERE id=?", id)
-		if err == nil {
-			_, err = tx.ExecContext(ctx, "DELETE FROM releases WHERE id=?", id)
-		}
-		if err != nil || tx.Commit() != nil {
-			tx.Rollback()
-			return storageError()
+		if err = b.maintenanceTx(ctx, 0, func(tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO release_tombstones(key_hash,release_id,job_id,state) SELECT key_hash,id,job_id,state FROM releases WHERE id=?", id); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(ctx, "DELETE FROM releases WHERE id=?", id)
+			return err
+		}); err != nil {
+			return err
 		}
 	}
 	return nil

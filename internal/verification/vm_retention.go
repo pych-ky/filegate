@@ -88,7 +88,7 @@ func vmRuntimeFiles(h *Harness, directory, except string) map[string]string {
 	return hashes
 }
 func vmRetentionCrash(h *Harness, window string) {
-	args := []string{h.Binary, "--data-dir", h.Data, "serve", "--input-root", "fixture=" + h.InputDirectory, "--vm-runner", h.Runner, "--vm-workspace", h.Workspace, "--vm-proof", h.Proof}
+	args := []string{h.Binary, "--data-dir", h.Data, "serve", "--input-root", "fixture=" + h.InputDirectory, "--input-root", "alias=" + h.InputDirectory, "--vm-runner", h.Runner, "--vm-workspace", h.Workspace, "--vm-proof", h.Proof}
 	result := Execute(h.Root, args, nil, 30*time.Second)
 	h.Logs = append(h.Logs, result.Stdout, result.Stderr)
 	h.Check("recovery_stopped_"+window, result.ExitCode == 91)

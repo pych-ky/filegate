@@ -88,7 +88,7 @@ func (b *Broker) JobReleases(ctx context.Context, jobID, cursor string, limit in
 			return out, storageError()
 		}
 		// 履歴は保存した公開事実を返し、現在の出力ファイルを再照合しない。
-		out.Releases = append(out.Releases, r.Receipt)
+		out.Releases = append(out.Releases, releaseResponseReceipt(r.Receipt))
 	}
 	return out, nil
 }

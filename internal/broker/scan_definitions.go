@@ -53,11 +53,16 @@ func (r *scanRun) definitionBinding() *av.Binding {
 }
 
 // A time-fresh historical image remains an update cache, not a current scan input.
-func (b *Broker) freshScanDefinition(control updatecontrol.Control) (bool, error) {
+// A non-nil admit is an optional caller's budget check, and its refusal is returned unchanged.
+func (b *Broker) freshScanDefinition(control updatecontrol.Control, admit func(*sql.Tx) error) (bool, error) {
 	if !updatecontrol.Fresh(control, control.Clock) {
 		return false, nil
 	}
-	_, err := b.updates.store.CurrentScanDefinition(control.Clock)
+	_, err := b.updates.store.CurrentScanDefinitionAdmitted(control.Clock, admit)
+	return currentDefinitionAvailable(err)
+}
+
+func currentDefinitionAvailable(err error) (bool, error) {
 	if errors.Is(err, updatecontrol.Error("REVALIDATION_REQUIRED")) || errors.Is(err, updatecontrol.Error("DEFINITION_CACHE_MISSING")) {
 		return false, nil
 	}
@@ -65,6 +70,10 @@ func (b *Broker) freshScanDefinition(control updatecontrol.Control) (bool, error
 		var updateError updatecontrol.Error
 		if errors.As(err, &updateError) {
 			return false, failure(string(updateError), 503)
+		}
+		var denied *Error
+		if errors.As(err, &denied) {
+			return false, err
 		}
 		return false, storageError()
 	}

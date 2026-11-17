@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"errors"
 	updatecontrol "filegate.local/filegate/internal/update"
 )
 
@@ -16,9 +17,13 @@ func (b *Broker) prepareUpdateScanLocked(id string) (bool, error) {
 	}
 	control, err := b.updates.store.Read(now)
 	if err != nil {
-		return false, failure(err.Error(), 503)
+		var updateError updatecontrol.Error
+		if errors.As(err, &updateError) {
+			return false, failure(string(updateError), 503)
+		}
+		return false, storageError()
 	}
-	fresh, err := b.freshScanDefinition(control)
+	fresh, err := b.freshScanDefinition(control, nil)
 	if err != nil {
 		return false, err
 	}
@@ -166,7 +171,7 @@ func (b *Broker) resolveUpdateWaitersLocked(control updatecontrol.Control, now u
 	if err != nil {
 		return storageError()
 	}
-	fresh, err := b.freshScanDefinition(control)
+	fresh, err := b.freshScanDefinition(control, nil)
 	if err != nil {
 		return err
 	}

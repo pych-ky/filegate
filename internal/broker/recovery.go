@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -318,6 +319,23 @@ func (b *Broker) Rescan(ctx context.Context, id string) (Job, error) {
 	if err = b.verifyObject(filepath.Join(b.config.DataDir, "objects", j.InputReceipt.ObjectID), j.InputReceipt.SHA256, j.InputReceipt.ByteSize); err != nil {
 		return Job{}, failure("INPUT_HASH_MISMATCH", 409)
 	}
+	if b.config.VM != nil {
+		var queued int
+		if tx.QueryRow("SELECT (SELECT count(*) FROM scan_queue)+(SELECT count(*) FROM update_waiters)").Scan(&queued) != nil {
+			return Job{}, storageError()
+		}
+		var acquiring int
+		if tx.QueryRow("SELECT count(*) FROM reservations").Scan(&acquiring) != nil {
+			return Job{}, storageError()
+		}
+		if queued+acquiring >= 20 {
+			return Job{}, failure("RESOURCE_BUSY", 429)
+		}
+	}
+	// A rescan reuses the stored original, so it charges no new original bytes but passes the same management checks.
+	if err = b.admission(tx, 0); err != nil {
+		return Job{}, err
+	}
 	j.AttemptID = newID("attempt")
 	j.UpdateID, j.WaitReason = "", ""
 	j.Phase = "FINISHED"
@@ -331,17 +349,6 @@ func (b *Broker) Rescan(ctx context.Context, id string) (Job, error) {
 	j.ConfirmedRejections = []RejectionEvidence{}
 	j.RuntimeCleanupComplete = true
 	if b.config.VM != nil {
-		var queued int
-		if tx.QueryRow("SELECT (SELECT count(*) FROM scan_queue)+(SELECT count(*) FROM update_waiters)").Scan(&queued) != nil {
-			return Job{}, storageError()
-		}
-		var acquiring int
-		if tx.QueryRow("SELECT count(*) FROM reservations").Scan(&acquiring) != nil {
-			return Job{}, storageError()
-		}
-		if queued+acquiring >= 20 {
-			return Job{}, failure("RESOURCE_BUSY", 429)
-		}
 		j.Phase = "QUEUED_FOR_SCAN"
 		j.Verdict = "UNDECIDED"
 		j.ReasonCodes = []string{}
@@ -371,7 +378,17 @@ func (b *Broker) prune(ctx context.Context, scheduled bool) (PruneResult, error)
 		return out, err
 	}
 	for _, id := range ids {
-		if err = b.pruneJob(ctx, id, cutoff, scheduled, &out); err != nil {
+		err = b.pruneJob(ctx, id, cutoff, scheduled, &out)
+		// A transient-page refusal skips only this job; a WAL or SHM refusal would refuse every later unit too.
+		if errors.Is(err, errMaintenanceTransient) {
+			out.Deferred = true
+			continue
+		}
+		if errors.Is(err, errMaintenanceBudget) {
+			out.Deferred = true
+			return out, nil
+		}
+		if err != nil {
 			return out, err
 		}
 	}
@@ -388,14 +405,22 @@ func (b *Broker) pruneStart(ctx context.Context, scheduled bool) (PruneResult, [
 	now := time.Now()
 	// Retention uses elapsed process time so a wall-clock jump cannot expire objects.
 	cutoff := b.openedAt.Add(now.Sub(b.openedAt)).UTC()
-	if err := b.pruneReleases(ctx, cutoff); err != nil {
+	// A WAL or SHM refusal of release or update-retention units ends this pass with a deferred, normal result.
+	if err := b.pruneReleases(ctx, cutoff); errors.Is(err, errMaintenanceBudget) {
+		out.Deferred = true
+		return out, nil, cutoff, nil
+	} else if err != nil {
 		return out, nil, time.Time{}, err
 	}
 	updates, err := b.updateRetention(ctx, cutoff, false)
+	out.DefinitionsRemoved, out.UpdateRuntimesRemoved, out.UpdateHistoriesRemoved, out.UpdateCleanupPending = updates.DefinitionsRemoved, updates.RuntimesRemoved, updates.HistoriesRemoved, updates.Pending
+	if errors.Is(err, errMaintenanceBudget) {
+		out.Deferred = true
+		return out, nil, cutoff, nil
+	}
 	if err != nil {
 		return out, nil, time.Time{}, err
 	}
-	out.DefinitionsRemoved, out.UpdateRuntimesRemoved, out.UpdateHistoriesRemoved, out.UpdateCleanupPending = updates.DefinitionsRemoved, updates.RuntimesRemoved, updates.HistoriesRemoved, updates.Pending
 	rows, err := b.db.QueryContext(ctx, "SELECT id FROM jobs WHERE created<? ORDER BY created", cutoff.Add(-7*24*time.Hour).UnixNano())
 	if err != nil {
 		return out, nil, time.Time{}, storageError()
@@ -417,6 +442,8 @@ func (b *Broker) pruneStart(ctx context.Context, scheduled bool) (PruneResult, [
 	return out, ids, cutoff, nil
 }
 
+// pruneJob re-reads the job, its references and its retention on every call. Past the 30-day retention its old attempts
+// and evidence go first in admitted units, so the original-deletion copy can reuse the freed pages.
 func (b *Broker) pruneJob(ctx context.Context, id string, cutoff time.Time, scheduled bool, out *PruneResult) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -449,68 +476,153 @@ func (b *Broker) pruneJob(ctx context.Context, id string, cutoff time.Time, sche
 			return nil
 		}
 	}
-	if j.InputReceipt != nil && j.InputReceipt.ContentAvailable {
-		current, e := b.originalDeletionJob(ctx, id)
-		if e != nil {
-			var reason *Error
-			if errors.As(e, &reason) && reason.Code == "RESOURCE_BUSY" {
-				return nil
-			}
-			return e
-		}
-		if err = b.beginOriginalDeletion(ctx, current); err != nil {
-			return err
-		}
-		j, err = b.finishDeletion(ctx, id, j.InputReceipt.ObjectID)
-		if err != nil {
-			b.recoveryBlocked = true
-			return err
-		}
-		out.ObjectsRemoved++
-	}
-	if err = b.pruneReports(ctx, id); err != nil {
-		b.recoveryBlocked = true
+	expired, err := b.jobRetentionExpired(ctx, j, cutoff)
+	if err != nil {
 		return err
 	}
-	finished, e := time.Parse(time.RFC3339Nano, j.FinishedAt)
-	if e != nil {
+	if !expired {
+		if proceed, err := b.pruneOriginalLocked(ctx, &j, out, false); err != nil || !proceed {
+			return err
+		}
+		if err = b.pruneReports(ctx, id); err != nil {
+			if !maintenanceDeferred(err) {
+				b.recoveryBlocked = true
+			}
+			return err
+		}
 		return nil
 	}
+	if j.InputReceipt != nil && j.InputReceipt.ContentAvailable {
+		if _, err = b.originalDeletionJob(ctx, id); err != nil {
+			var reason *Error
+			if errors.As(err, &reason) && reason.Code == "RESOURCE_BUSY" {
+				return nil
+			}
+			return err
+		}
+	}
+	for _, step := range []func(context.Context, string) error{b.pruneReports, b.pruneRuntimes} {
+		if err = step(ctx, id); err != nil {
+			if !maintenanceDeferred(err) {
+				b.recoveryBlocked = true
+			}
+			return err
+		}
+	}
+	if err = b.pruneHistory(ctx, j); err != nil {
+		return err
+	}
+	if proceed, err := b.pruneOriginalLocked(ctx, &j, out, true); err != nil || !proceed {
+		return err
+	}
+	err = b.maintenanceTx(ctx, 0, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO tombstones(key_hash,job_id,state) SELECT key_hash,job_id,? FROM intakes WHERE job_id=?", j.Phase, id); err != nil {
+			return err
+		}
+		for _, query := range []string{"DELETE FROM rejection_evidence WHERE job_id=?", "DELETE FROM intake_metadata WHERE job_id=?", "DELETE FROM attempts WHERE job_id=?", "DELETE FROM objects WHERE job_id=?", "DELETE FROM intakes WHERE job_id=?", "DELETE FROM jobs WHERE id=?"} {
+			if _, err := tx.ExecContext(ctx, query, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	out.JobsRemoved++
+	return nil
+}
+
+// jobRetentionExpired applies the 30-day job, attempt and evidence retention from the later of FinishedAt and the newest
+// runtime finalization; a job that any release references is kept.
+func (b *Broker) jobRetentionExpired(ctx context.Context, j Job, cutoff time.Time) (bool, error) {
+	finished, err := time.Parse(time.RFC3339Nano, j.FinishedAt)
+	if err != nil {
+		return false, nil
+	}
 	var resolved int64
-	if b.db.QueryRowContext(ctx, "SELECT coalesce(max(resolved_at),0) FROM runtime_finalizations JOIN runtime_runs USING(attempt_id) WHERE job_id=?", id).Scan(&resolved) != nil {
-		return storageError()
+	if b.db.QueryRowContext(ctx, "SELECT coalesce(max(resolved_at),0) FROM runtime_finalizations JOIN runtime_runs USING(attempt_id) WHERE job_id=?", j.JobID).Scan(&resolved) != nil {
+		return false, storageError()
 	}
 	if resolved > finished.UnixNano() {
 		finished = time.Unix(0, resolved)
 	}
 	if !finished.Before(cutoff.Add(-30 * 24 * time.Hour)) {
-		return nil
+		return false, nil
 	}
-	if b.db.QueryRowContext(ctx, "SELECT count(*) FROM releases WHERE job_id=?", id).Scan(&references) != nil {
-		return storageError()
+	var references int
+	if b.db.QueryRowContext(ctx, "SELECT count(*) FROM releases WHERE job_id=?", j.JobID).Scan(&references) != nil {
+		return false, storageError()
 	}
-	if references != 0 {
-		return nil
+	return references == 0, nil
+}
+
+// pruneOriginalLocked deletes a still available original: busy references skip the job (false), a new intent is admitted
+// in its own transaction, and an already durable intent always completes.
+func (b *Broker) pruneOriginalLocked(ctx context.Context, j *Job, out *PruneResult, expired bool) (bool, error) {
+	if j.InputReceipt == nil || !j.InputReceipt.ContentAvailable {
+		return true, nil
 	}
-	if err = b.pruneRuntimes(ctx, id); err != nil {
+	current, err := b.originalDeletionJob(ctx, j.JobID)
+	if err != nil {
+		var reason *Error
+		if errors.As(err, &reason) && reason.Code == "RESOURCE_BUSY" {
+			return false, nil
+		}
+		return false, err
+	}
+	if err = b.beginOriginalDeletion(ctx, current, expired); err != nil {
+		return false, err
+	}
+	*j, err = b.finishDeletion(ctx, j.JobID, j.InputReceipt.ObjectID)
+	if err != nil {
 		b.recoveryBlocked = true
-		return err
+		return false, err
 	}
-	tx, e := b.db.BeginTx(ctx, nil)
-	if e != nil {
+	out.ObjectsRemoved++
+	return true, nil
+}
+
+// pruneHistory deletes the non-current attempts of an expired job one per unit (their scan snapshots cascade), then its
+// rejection evidence 200 rows per unit; neither is read outside pruning, and the job row and key stay until the tombstone.
+func (b *Broker) pruneHistory(ctx context.Context, j Job) error {
+	rows, err := b.db.QueryContext(ctx, "SELECT id FROM attempts WHERE job_id=? AND id<>?", j.JobID, j.AttemptID)
+	if err != nil {
 		return storageError()
 	}
-	_, e = tx.ExecContext(ctx, "INSERT INTO tombstones(key_hash,job_id,state) SELECT key_hash,job_id,? FROM intakes WHERE job_id=?", j.Phase, id)
-	for _, query := range []string{"DELETE FROM rejection_evidence WHERE job_id=?", "DELETE FROM intake_metadata WHERE job_id=?", "DELETE FROM attempts WHERE job_id=?", "DELETE FROM objects WHERE job_id=?", "DELETE FROM intakes WHERE job_id=?", "DELETE FROM jobs WHERE id=?"} {
-		if e == nil {
-			_, e = tx.ExecContext(ctx, query, id)
+	var old []string
+	for rows.Next() {
+		var attempt string
+		if rows.Scan(&attempt) != nil {
+			rows.Close()
+			return storageError()
+		}
+		old = append(old, attempt)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return storageError()
+	}
+	for _, attempt := range old {
+		if err = b.maintenanceTx(ctx, 0, func(tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, "DELETE FROM attempts WHERE id=? AND job_id=?", attempt, j.JobID)
+			return err
+		}); err != nil {
+			return err
 		}
 	}
-	if e != nil || tx.Commit() != nil {
-		tx.Rollback()
-		return storageError()
+	for removed := int64(200); removed == 200; {
+		if err = b.maintenanceTx(ctx, 0, func(tx *sql.Tx) error {
+			result, err := tx.ExecContext(ctx, "DELETE FROM rejection_evidence WHERE rowid IN (SELECT rowid FROM rejection_evidence WHERE job_id=? LIMIT 200)", j.JobID)
+			if err == nil {
+				removed, err = result.RowsAffected()
+			}
+			return err
+		}); err != nil {
+			return err
+		}
 	}
-	out.JobsRemoved++
 	return nil
 }
 

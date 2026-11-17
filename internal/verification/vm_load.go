@@ -194,9 +194,18 @@ func vmLedger(h *Harness) Object {
 func vmCapacityInputs(h *Harness) []Object {
 	proofPath := h.Paths["fixture-proof"]
 	h.Check("capacity_fixture_proof_required", proofPath != "")
-	h.Check("capacity_fixture_provenance", FileDigest(proofPath) == "4dd239b27050de1244a85bad830f9e983cd8387e3b3a39f0826a61c5fd673b81")
+	h.Check("capacity_fixture_provenance", FileDigest(proofPath) == "0e34cb5c821302391ee1a643f721586468731378cda3791ba4d93cb6a56850cb")
 	proof := ReadJSON(proofPath)
-	h.Check("capacity_generator_identity", Str(proof, "source_sha256") == "6ca4d3c7512ed11e1d0111cf018ede029c167b22bfbd406ea030392c23e986f7")
+	generator := "5de2d42e6cfce407ef97f555c7dadb262ba78bf97cbee7acfab6935bf5a28577"
+	h.Check("capacity_generator_identity", Str(proof, "source_sha256") == generator && FileDigest(filepath.Join(h.Root, "internal/verification/capacity_fixtures.go")) == generator)
+	h.Check("capacity_inputs_directory_required", h.Inputs != "")
+	// Sizes, member geometry, ratio and digests are rechecked from the limit constants, not taken from the proof alone.
+	proofRows := []Object{}
+	for _, row := range List(proof, "cases") {
+		proofRows = append(proofRows, Map(row))
+	}
+	_, err := VerifyCapacityFixtures(h.Inputs, proofRows)
+	h.Check("capacity_fixture_independent_verification", err == nil)
 	wanted := []string{"input-262144001", "input-262144000", "file-at", "file-over", "cumulative-at", "cumulative-over"}
 	rows := List(proof, "cases")
 	h.Check("capacity_exact_fixture_set", len(rows) == len(wanted))
@@ -244,7 +253,7 @@ func vmCapacityInputs(h *Harness) []Object {
 		result = append(result, test)
 	}
 	Write(filepath.Join(h.Out, "fixture-generation-proof.json"), Read(proofPath))
-	h.Record["fixture_source"] = "reused_existing_files_bound_to_historical_generation_proof"
+	h.Record["fixture_source"] = "new_reproducible_candidate_generation_bound_to_capacity_fixtures_go"
 	return result
 }
 func runVMCapacity(h *Harness) {

@@ -2,6 +2,7 @@ package update
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"filegate.local/filegate/internal/hostvm"
 )
 
 type fixtureRuntimeReceipt struct {
@@ -128,6 +131,17 @@ func (s *Store) finishRuntime(manifestPath string, m RuntimeManifest, directory 
 		}
 		_, finalErr = s.Final(r.Attempt.ID, body, now)
 	}
+	var nativeReason string
+	var reasonErr error
+	if !m.FixtureOnly && !receipt.StartupOnly && !prior.AdoptionApproved {
+		nativeReason, err = normalRuntimeFailure(directory, r, receipt)
+		if err != nil {
+			return result, err
+		}
+		if nativeReason != "" {
+			reasonErr = s.recordRuntimeFailure(r.Attempt.ID, nativeReason, now)
+		}
+	}
 	cleaned := receipt.CleanupConfirmed && m.FixtureOnly
 	if _, err = s.Stopped(r.Attempt.ID, cleaned, now); err != nil {
 		return result, err
@@ -137,6 +151,7 @@ func (s *Store) finishRuntime(manifestPath string, m RuntimeManifest, directory 
 		return result, err
 	}
 	result.ControlCommitted, result.StopConfirmed, result.CleanupConfirmed = a.ControlCommitted, a.StopConfirmed, a.CleanupConfirmed
+	result.Reason = a.Reason
 	state := "CLEANUP_PENDING"
 	if receipt.CleanupConfirmed && !m.FixtureOnly {
 		state = "STOPPED"
@@ -148,10 +163,85 @@ func (s *Store) finishRuntime(manifestPath string, m RuntimeManifest, directory 
 	if err != nil {
 		return result, err
 	}
+	if reasonErr != nil {
+		return result, reasonErr
+	}
+	if nativeReason != "" {
+		return result, Error(nativeReason)
+	}
 	if !receipt.CleanupConfirmed {
 		return result, Error("CLEANUP_PENDING")
 	}
 	return result, finalErr
+}
+
+func (s *Store) recordRuntimeFailure(id, reason string, now Clock) error {
+	_, err := s.apply(now, func(tx *sql.Tx, c *Control, now Clock) error {
+		a, err := loadAttempt(tx, id)
+		if err != nil {
+			return err
+		}
+		if a.Reason == "" && !a.AdoptionApproved && !a.CleanupConfirmed {
+			a.Reason = reason
+			return saveAttempt(tx, a)
+		}
+		return nil
+	})
+	return err
+}
+
+// Normal adoption requires successful native completion in addition to the separately verified stop and cleanup.
+func normalRuntimeFailure(directory string, r runtimeRequest, receipt fixtureRuntimeReceipt) (string, error) {
+	if err := validateFixtureStop(directory, r, receipt.StopProofSHA256); err != nil {
+		return "", err
+	}
+	output := filepath.Join(directory, "output")
+	if receipt.CleanupConfirmed {
+		body, err := runtimeRead(filepath.Join(output, "cleanup-complete.json"), 4<<20)
+		var complete map[string]json.RawMessage
+		if err != nil || sha256Text(body) != receipt.CleanupSHA256 || runtimeJSON(body, &complete) != nil {
+			return "", Invalid
+		}
+		var stopSHA string
+		if json.Unmarshal(complete["stop_proof_sha256"], &stopSHA) != nil || stopSHA != receipt.StopProofSHA256 {
+			return "", Invalid
+		}
+	}
+	body, err := runtimeRead(filepath.Join(output, "stop-proof.json"), 64<<10)
+	var proof map[string]json.RawMessage
+	if err != nil || sha256Text(body) != receipt.StopProofSHA256 || runtimeJSON(body, &proof) != nil {
+		return "", Invalid
+	}
+	var kind string
+	if json.Unmarshal(proof["kind"], &kind) != nil {
+		return "", Invalid
+	}
+	if kind != "native_guardian" {
+		return "INTERRUPTED", nil
+	}
+	var evidence struct {
+		Path   string `json:"path"`
+		SHA256 string `json:"sha256"`
+	}
+	if runtimeJSON(proof["evidence"], &evidence) != nil || evidence.Path != "watchdog/results.json" {
+		return "", Invalid
+	}
+	body, err = runtimeRead(filepath.Join(output, evidence.Path), 4<<20)
+	var native map[string]json.RawMessage
+	if err != nil || sha256Text(body) != evidence.SHA256 || runtimeJSON(body, &native) != nil {
+		return "", Invalid
+	}
+	var passed bool
+	var terminal struct {
+		Reason string `json:"reason"`
+	}
+	if json.Unmarshal(native["passed"], &passed) != nil || json.Unmarshal(native["terminal"], &terminal) != nil {
+		return "INTERRUPTED", nil
+	}
+	if passed && terminal.Reason == "EXCHANGE_COMPLETE" {
+		return "", nil
+	}
+	return runtimeReason(Error(terminal.Reason)), nil
 }
 
 func validateFixtureStartup(directory string, r runtimeRequest, receipt fixtureRuntimeReceipt) error {
@@ -312,9 +402,8 @@ func validateFixtureStop(directory string, r runtimeRequest, expectedSHA string)
 				return Invalid
 			}
 		}
-		var guardian, emptyGroup bool
+		var guardian bool
 		_ = json.Unmarshal(native["guardian_result_verified"], &guardian)
-		_ = json.Unmarshal(native["process_group_empty"], &emptyGroup)
 		var terminal *struct {
 			AllExited bool `json:"all_exited"`
 		}
@@ -322,7 +411,11 @@ func validateFixtureStop(directory string, r runtimeRequest, expectedSHA string)
 			return Invalid
 		}
 		if p.Kind == "native_stopped_group" {
-			if terminal != nil || guardian || !emptyGroup || len(rows) != 1 {
+			group, e := hostvm.Decode(data)
+			if e != nil || terminal != nil {
+				return Invalid
+			}
+			if _, e = hostvm.StoppedGroupIdentities(group); e != nil {
 				return Invalid
 			}
 		} else if p.Kind == "native_guardian" && !guardian {

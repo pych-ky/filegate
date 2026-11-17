@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"filegate.local/filegate/internal/qemuruntime"
 	"golang.org/x/sys/unix"
 )
 
@@ -527,6 +528,11 @@ func BuildScan(ctx context.Context, options BuildOptions) (map[string]any, error
 	output["host_runner"] = hostRunners["filegate-vm"]
 	output["host_update_runner"] = hostRunners["filegate-update"]
 	output["native_proof_sha256"] = mustSHA(nativeProof)
+	tools, err := qemuruntime.Capture(ctx)
+	if err != nil {
+		return nil, err
+	}
+	output["qemu_runtime"] = tools
 	output["av_fixture"] = fixture
 	output["normal_product_profile_installed"] = false
 	output["official_definitions_adopted"] = false

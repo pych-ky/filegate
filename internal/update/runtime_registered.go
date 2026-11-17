@@ -258,14 +258,14 @@ func (r *Runtime) current() error {
 	return nil
 }
 
-func (s *Store) BeginRuntime(r *Runtime, directory, id string, now Clock) (Control, Attempt, error) {
+func (s *Store) BeginRuntime(r *Runtime, directory, id string, now Clock, admit func(*sql.Tx) error) (Control, Attempt, error) {
 	if r == nil || r.current() != nil || !filepath.IsAbs(directory) || filepath.Clean(directory) != directory || !identifier.MatchString(id) {
 		return Control{}, Attempt{}, Invalid
 	}
 	if _, err := os.Lstat(directory); !errors.Is(err, os.ErrNotExist) {
 		return Control{}, Attempt{}, Invalid
 	}
-	return s.begin(id, now, func(tx *sql.Tx, c Control) error {
+	return s.begin(id, now, admit, func(tx *sql.Tx, c Control) error {
 		if c.Binding.FixtureOnly || c.Binding.LibrarySHA256 != r.manifest.LibrarySHA256 {
 			return fmt.Errorf("registered update binding mismatch")
 		}
